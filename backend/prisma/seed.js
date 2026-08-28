@@ -21,11 +21,12 @@ async function main() {
 
   // 1. Seed Outlets
   const outletData = [
-    { outlet_name: "Indiranagar Flagship", manager_name: "Aarav Sharma", address: "100 Feet Rd, Indiranagar", city: "Bengaluru", state: "Karnataka", country: "India", postal_code: "560038", latitude: 12.9716, longitude: 77.5946 },
-    { outlet_name: "HITECH City Hub", manager_name: "Priya Reddy", address: "Cyber Towers, HITECH City", city: "Hyderabad", state: "Telangana", country: "India", postal_code: "500081", latitude: 17.4435, longitude: 78.3772 },
-    { outlet_name: "Anna Nagar Cafe", manager_name: "Karthik Raja", address: "2nd Avenue, Anna Nagar", city: "Chennai", state: "Tamil Nadu", country: "India", postal_code: "600040", latitude: 13.0850, longitude: 80.2101 },
-    { outlet_name: "Bandra Promenade", manager_name: "Neha Kulkarni", address: "Carter Rd, Bandra West", city: "Mumbai", state: "Maharashtra", country: "India", postal_code: "400050", latitude: 19.0596, longitude: 72.8295 },
-    { outlet_name: "Koregaon Park Bistro", manager_name: "Rohan Deshmukh", address: "North Main Rd, Koregaon Park", city: "Pune", state: "Maharashtra", country: "India", postal_code: "411001", latitude: 18.5362, longitude: 73.8940 }
+    { outlet_name: "McDonald's Indiranagar", manager_name: "Aarav Sharma", address: "100 Feet Rd, Indiranagar", city: "Bengaluru", state: "Karnataka", country: "India", postal_code: "560038", latitude: 12.9716, longitude: 77.5946 },
+    { outlet_name: "Domino's Hitec", manager_name: "Priya Reddy", address: "Cyber Towers, HITECH City", city: "Hyderabad", state: "Telangana", country: "India", postal_code: "500081", latitude: 17.4435, longitude: 78.3772 },
+    { outlet_name: "McDonald's T-Nagar", manager_name: "Karthik Raja", address: "2nd Avenue, Anna Nagar", city: "Chennai", state: "Tamil Nadu", country: "India", postal_code: "600040", latitude: 13.0850, longitude: 80.2101 },
+    { outlet_name: "KFC Bandra Linking Road", manager_name: "Neha Kulkarni", address: "Carter Rd, Bandra West", city: "Mumbai", state: "Maharashtra", country: "India", postal_code: "400050", latitude: 19.0596, longitude: 72.8295 },
+    { outlet_name: "KFC Park Street", manager_name: "Rohan Deshmukh", address: "North Main Rd, Koregaon Park", city: "Pune", state: "Maharashtra", country: "India", postal_code: "411001", latitude: 18.5362, longitude: 73.8940 },
+    { outlet_name: "Domino's Connaught Place", manager_name: "Amit Dev", address: "Radial Road 1, Connaught Place", city: "New Delhi", state: "Delhi", country: "India", postal_code: "110001", latitude: 28.6304, longitude: 77.2177 }
   ];
 
   for (const o of outletData) {
@@ -116,6 +117,7 @@ async function main() {
       else if (outlet.city === 'Chennai') { baseOrders = 145; baseAOV = 140; weekendBoost = 1.35; costRatio = 0.60; }
       else if (outlet.city === 'Mumbai') { baseOrders = 220; baseAOV = 185; weekendBoost = 1.20; costRatio = 0.54; }
       else if (outlet.city === 'Pune') { baseOrders = 135; baseAOV = 138; weekdayBoost = 1.18; weekendBoost = 0.85; costRatio = 0.64; }
+      else if (outlet.city === 'New Delhi') { baseOrders = 190; baseAOV = 165; weekendBoost = 1.25; costRatio = 0.50; }
 
       const boost = isWeekend ? weekendBoost : weekdayBoost;
       const rnd = 0.92 + Math.random() * 0.16;
@@ -289,7 +291,7 @@ async function main() {
   await prisma.audit_sessions.deleteMany({});
   await prisma.audit_incidents.deleteMany({});
 
-  const [o1, o2, o3, o4, o5] = outlets;
+  const [o1, o2, o3, o4, o5, o6] = outlets;
 
   // Audit sessions
   const sessions = await Promise.all([
@@ -300,8 +302,9 @@ async function main() {
     prisma.audit_sessions.create({ data: { outlet_id: o3.id, auditor_name: 'Arjun Mehta (Field Inspector)', audit_date: '2026-08-08', status: 'Escalated', overall_score: 52.0, max_score: 100, pass_fail: 'Fail', hygiene_score: 44.0, food_safety_score: 48.0, sop_score: 60.0, facility_score: 56.0, notes: 'Multiple critical food safety violations. Escalated to Regional Director immediately.' } }),
     prisma.audit_sessions.create({ data: { outlet_id: o4.id, auditor_name: 'Kavya Nair (Compliance Lead)', audit_date: '2026-08-07', status: 'Completed', overall_score: 78.9, max_score: 100, pass_fail: 'Pass', hygiene_score: 83.0, food_safety_score: 79.0, sop_score: 76.0, facility_score: 77.0, notes: 'Good overall. Recommend refresher on closing procedures.' } }),
     prisma.audit_sessions.create({ data: { outlet_id: o5.id, auditor_name: 'Priya Sharma (Regional Auditor)', audit_date: '2026-08-06', status: 'Completed', overall_score: 73.5, max_score: 100, pass_fail: 'Pass', hygiene_score: 76.0, food_safety_score: 72.0, sop_score: 74.0, facility_score: 72.0, notes: 'Passed with marginal scores. Action plan dispatched.' } }),
+    prisma.audit_sessions.create({ data: { outlet_id: o6.id, auditor_name: 'Amit Dev (Manager)', audit_date: '2026-08-11', status: 'Completed', overall_score: 92.0, max_score: 100, pass_fail: 'Pass', hygiene_score: 90.0, food_safety_score: 95.0, sop_score: 92.0, facility_score: 91.0, notes: 'Excellent hygiene and safety compliance. Highly prepared.' } }),
   ]);
-  const [s1, s2, s3, s4, s5, s6, s7] = sessions;
+  const [s1, s2, s3, s4, s5, s6, s7, s8] = sessions;
 
   // Checklist templates
   const templates = [
@@ -343,6 +346,7 @@ async function main() {
     [s5.id]: ['Fail','Pass','Fail','Fail','Fail','Fail','Fail','Fail','Fail','Fail','Pass','Fail','Pass','Pass','Fail','Pass','Fail','Pass','Fail','Fail','Pass','Pass','Pass','Pass','Fail','Pass','Fail','Pass'],
     [s6.id]: ['Pass','Pass','Pass','Pass','Fail','Pass','Pass','Pass','Pass','Fail','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Fail','Pass','Pass','Fail','Pass','Pass','Pass','Pass','Pass'],
     [s7.id]: ['Pass','Pass','Fail','Pass','Pass','Pass','Pass','Pass','Fail','Pass','Fail','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Fail','Pass','Pass','Pass','Pass','Fail','Pass','Pass','Pass'],
+    [s8.id]: ['Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass','Pass']
   };
 
   for (const session of sessions) {

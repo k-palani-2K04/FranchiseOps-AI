@@ -15,7 +15,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
 } from "recharts";
 import MapComponent from "./components/MapComponent";
 import CompareModal from "./components/CompareModal";
@@ -243,6 +246,13 @@ function computeAiInsights(
   return insights;
 }
 
+function getTabClass(tabName: string, isActive: boolean) {
+  if (isActive) {
+    return "bg-[#152033] text-white shadow-md font-bold px-3.5 py-2 text-xs rounded-xl flex items-center space-x-1.5 cursor-pointer transition-all border border-slate-800";
+  }
+  return "bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold px-3.5 py-2 text-xs rounded-xl flex items-center space-x-1.5 cursor-pointer transition-all border border-transparent";
+}
+
 export default function OperationsDashboard() {
   const [activeStepId, setActiveStepId] = useState<number>(3);
   const [outlets, setOutlets] = useState<any[]>([]);
@@ -253,7 +263,7 @@ export default function OperationsDashboard() {
   const [performanceSubTab, setPerformanceSubTab] = useState<"overview" | "map" | "health" | "underperforming" | "logs">("overview");
   const [inventorySubTab, setInventorySubTab] = useState<"roster" | "ai" | "reorders">("roster");
   const [staffSubTab, setStaffSubTab] = useState<"roster" | "ai" | "shifts" | "performers" | "underperformers" | "allocate">("roster");
-  const [intelligenceSubTab, setIntelligenceSubTab] = useState<"overview" | "health" | "risks" | "opportunities" | "recommendations">("overview");
+  const [intelligenceSubTab, setIntelligenceSubTab] = useState<"overview" | "health" | "risks" | "opportunities" | "recommendations">("risks");
 
 
   // Data States
@@ -489,7 +499,7 @@ export default function OperationsDashboard() {
 
   // Intelligence Engine API Effect
   useEffect(() => {
-    if (activeStepId === 8) {
+    if ([8, 9, 10].includes(activeStepId)) {
       setIntelligenceLoading(true);
       Promise.all([
         api.get("/intelligence/consolidate"),
@@ -690,6 +700,123 @@ export default function OperationsDashboard() {
     return computeAiInsights(trends, salesList, activeOutletName);
   }, [trends, salesList, activeOutletName]);
 
+  const paymentSplitData = useMemo(() => {
+    if (!summary || !summary.paymentSplit) return [];
+    return [
+      { name: "UPI", value: summary.paymentSplit.upi, color: "#10b981" },
+      { name: "Card", value: summary.paymentSplit.card, color: "#4f46e5" },
+      { name: "Cash", value: summary.paymentSplit.cash, color: "#f59e0b" },
+    ];
+  }, [summary]);
+
+  const storeComparisonData = useMemo(() => {
+    if (!healthScores) return [];
+    return healthScores.map(hs => ({
+      name: hs.outletName,
+      Revenue: hs.metrics.revenue,
+      Profit: hs.metrics.profit,
+    }));
+  }, [healthScores]);
+
+  const inventoryCategoryData = useMemo(() => {
+    if (!inventoryItems || inventoryItems.length === 0) return [];
+    const counts: { [key: string]: number } = {};
+    inventoryItems.forEach(item => {
+      counts[item.category] = (counts[item.category] || 0) + (item.currentStock * item.unitPrice);
+    });
+    const colors = ["#4f46e5", "#10b981", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6"];
+    return Object.keys(counts).map((category, idx) => ({
+      name: category,
+      value: Math.round(counts[category]),
+      color: colors[idx % colors.length]
+    }));
+  }, [inventoryItems]);
+
+  const inventoryThresholdData = useMemo(() => {
+    if (!inventoryItems || inventoryItems.length === 0) return [];
+    const lowStockItems = inventoryItems
+      .filter(item => item.status === "Critical" || item.status === "Low Stock" || item.currentStock <= item.minThreshold * 1.5)
+      .slice(0, 10);
+    const displayItems = lowStockItems.length > 0 ? lowStockItems : inventoryItems.slice(0, 8);
+    return displayItems.map(item => ({
+      name: `${item.itemName} (${item.city.slice(0,3)})`,
+      Stock: item.currentStock,
+      MinThreshold: item.minThreshold,
+    }));
+  }, [inventoryItems]);
+
+  const staffPerformanceData = useMemo(() => {
+    if (!staffMembers || staffMembers.length === 0) return [];
+    const sorted = [...staffMembers].sort((a, b) => b.performanceRating - a.performanceRating).slice(0, 10);
+    return sorted.map(s => ({
+      name: s.name,
+      Rating: s.performanceRating,
+    }));
+  }, [staffMembers]);
+
+  const staffShiftDistributionData = useMemo(() => {
+    if (!staffInsights || !staffInsights.summary || !staffInsights.summary.shiftDistribution) return [];
+    const dist = staffInsights.summary.shiftDistribution;
+    return [
+      { name: "Morning", value: dist.Morning || 0, color: "#f59e0b" },
+      { name: "Evening", value: dist.Evening || 0, color: "#3b82f6" },
+      { name: "Night", value: dist.Night || 0, color: "#4f46e5" },
+    ];
+  }, [staffInsights]);
+
+  const campaignBudgetVsRevenueData = useMemo(() => {
+    if (!campaigns || campaigns.length === 0) return [];
+    return campaigns.map(c => {
+      const rep = c.roi_reports[0] || { total_spend: c.budget, attributed_revenue: 0 };
+      return {
+        name: c.name.length > 12 ? c.name.slice(0, 10) + ".." : c.name,
+        Spend: rep.total_spend,
+        Revenue: rep.attributed_revenue
+      };
+    });
+  }, [campaigns]);
+
+  const auditComplianceData = useMemo(() => {
+    if (!auditSessions) return [];
+    return auditSessions
+      .filter((s: any) => s.passFail !== "Pending")
+      .map((s: any) => ({
+        name: s.outletName.length > 12 ? s.outletName.slice(0, 10) + ".." : s.outletName,
+        Score: s.overallScore,
+        Hygiene: s.hygieneScore,
+        FoodSafety: s.foodSafetyScore,
+      }));
+  }, [auditSessions]);
+
+  const recommendationsPriorityData = useMemo(() => {
+    if (!intelligenceRecommendations || !intelligenceRecommendations.recommendations) return [];
+    let p1 = 0, p2 = 0, p3 = 0;
+    intelligenceRecommendations.recommendations.forEach((r: any) => {
+      if (r.priority === "P1" || r.priority?.includes("P1")) p1++;
+      else if (r.priority === "P2" || r.priority?.includes("P2")) p2++;
+      else p3++;
+    });
+    return [
+      { name: "P1 Critical", value: p1, color: "#ef4444" },
+      { name: "P2 High", value: p2, color: "#f59e0b" },
+      { name: "P3 Medium", value: p3, color: "#3b82f6" },
+    ].filter(d => d.value > 0);
+  }, [intelligenceRecommendations]);
+
+  const recommendationsCategoryData = useMemo(() => {
+    if (!intelligenceRecommendations || !intelligenceRecommendations.recommendations) return [];
+    const counts: { [key: string]: number } = {};
+    intelligenceRecommendations.recommendations.forEach((r: any) => {
+      counts[r.category] = (counts[r.category] || 0) + 1;
+    });
+    const colors = ["#4f46e5", "#10b981", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6"];
+    return Object.keys(counts).map((category, idx) => ({
+      name: category,
+      value: counts[category],
+      color: colors[idx % colors.length]
+    }));
+  }, [intelligenceRecommendations]);
+
   // Franchise Health Score Simulator Memo
   const simulatedHealthScore = useMemo(() => {
     const financialScore  = Math.min(35, Math.max(0, (simulatedMargin / 45) * 35));
@@ -884,12 +1011,6 @@ export default function OperationsDashboard() {
 
             {/* Step Groups */}
             {([
-              {
-                label: "Data Inputs",
-                color: "text-sky-400",
-                dot: "bg-sky-400",
-                ids: [1, 2],
-              },
               {
                 label: "AI Agents",
                 color: "text-indigo-400",
@@ -1118,31 +1239,81 @@ export default function OperationsDashboard() {
                     </div>
                   )}
 
-                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-                    <h3 className="text-base font-bold text-slate-900">Revenue & Operating Cost Daily Trends</h3>
-                    <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                          <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                          <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']} />
-                          <Area type="monotone" dataKey="grossRevenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" name="Gross Revenue" />
-                          <Area type="monotone" dataKey="netProfit" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" name="Net Profit" />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 lg:col-span-2">
+                      <h3 className="text-base font-bold text-slate-900">Revenue & Operating Cost Daily Trends</h3>
+                      <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']} />
+                            <Area type="monotone" dataKey="grossRevenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" name="Gross Revenue" />
+                            <Area type="monotone" dataKey="netProfit" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" name="Net Profit" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 lg:col-span-1">
+                      <h3 className="text-base font-bold text-slate-900">Payment Split</h3>
+                      <div className="h-64 w-full">
+                        {paymentSplitData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={paymentSplitData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={75}
+                                paddingAngle={4}
+                                dataKey="value"
+                              >
+                                {paymentSplitData.map((entry, idx) => (
+                                  <Cell key={`cell-${idx}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Amount']} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-xs text-slate-400">No payment data</div>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {selectedOutlet === "all" && storeComparisonData.length > 0 && (
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                      <h3 className="text-base font-bold text-slate-900">Outlet Sales & Profit Performance Comparison</h3>
+                      <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={storeComparisonData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']} />
+                            <Legend />
+                            <Bar dataKey="Revenue" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Gross Revenue" />
+                            <Bar dataKey="Profit" fill="#10b981" radius={[4, 4, 0, 0]} name="Net Profit" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1390,7 +1561,54 @@ export default function OperationsDashboard() {
 
               {/* 1. STOCK INVENTORY ROSTER SUB-TAB (PAGE SEGMENTATION) */}
               {inventorySubTab === "roster" && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 lg:col-span-2">
+                      <h3 className="text-base font-bold text-slate-900">Stock Safety Level Check</h3>
+                      <p className="text-xs text-slate-500">Current stock compared against minimum safety thresholds</p>
+                      <div className="h-60 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={inventoryThresholdData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="Stock" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Current Stock" />
+                            <Bar dataKey="MinThreshold" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Min Threshold" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 lg:col-span-1">
+                      <h3 className="text-base font-bold text-slate-900">Stock Capital Breakdown</h3>
+                      <p className="text-xs text-slate-500">Capital value of inventory categories</p>
+                      <div className="h-60 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={inventoryCategoryData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={45}
+                              outerRadius={65}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              {inventoryCategoryData.map((entry, idx) => (
+                                <Cell key={`cell-${idx}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v: any) => [`₹${v.toLocaleString('en-IN')}`, 'Valuation']} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">Store Stock Inventory Roster</h3>
@@ -1476,7 +1694,8 @@ export default function OperationsDashboard() {
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
               {/* 2. AI DEPLETION FORECAST SUB-TAB */}
               {inventorySubTab === "ai" && inventoryInsights && (
@@ -1596,7 +1815,57 @@ export default function OperationsDashboard() {
 
               {/* 1. STAFF ROSTER SUB-TAB (PAGE SEGMENTATION) */}
               {staffSubTab === "roster" && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 lg:col-span-2">
+                      <h3 className="text-base font-bold text-slate-900">Staff Performance Ratings</h3>
+                      <p className="text-xs text-slate-500">Overview of employee performance score out of 5.0</p>
+                      <div className="h-60 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={staffPerformanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="Rating" fill="#10b981" radius={[4, 4, 0, 0]} name="Performance Rating" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 lg:col-span-1">
+                      <h3 className="text-base font-bold text-slate-900">Shift Coverage Distribution</h3>
+                      <p className="text-xs text-slate-500">Staff count by shift type</p>
+                      <div className="h-60 w-full">
+                        {staffShiftDistributionData.length > 0 && staffShiftDistributionData.some(d => d.value > 0) ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={staffShiftDistributionData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={45}
+                                outerRadius={65}
+                                paddingAngle={4}
+                                dataKey="value"
+                              >
+                                {staffShiftDistributionData.map((entry, idx) => (
+                                  <Cell key={`cell-${idx}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: any) => [`${v} Members`, 'Count']} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-xs text-slate-400">No shift data</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">Franchise Staff Roster & Performance Ratings</h3>
@@ -1687,7 +1956,8 @@ export default function OperationsDashboard() {
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
               {/* 2. TOP 5 PERFORMERS SUB-TAB */}
               {staffSubTab === "performers" && staffPerformers && (
@@ -2049,35 +2319,55 @@ export default function OperationsDashboard() {
                     </div>
                   </div>
 
-                  {/* Trend chart */}
+                  {/* Visual charts */}
                   {campaigns.length > 0 && (
-                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-                      <h3 className="text-base font-bold text-slate-900">Campaign Conversions Performance Trends</h3>
-                      <p className="text-xs text-slate-500">Active click-throughs and customer conversions tracked across promotional activities</p>
-                      <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={campaigns.flatMap(c => c.marketing_metrics || []).slice(0, 30)}
-                            margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                          >
-                            <defs>
-                              <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                              </linearGradient>
-                              <linearGradient id="colorConvs" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                            <XAxis dataKey="recorded_date" tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                            <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                            <Tooltip formatter={(value: any) => [Number(value).toLocaleString(), '']} />
-                            <Area type="monotone" dataKey="clicks" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorClicks)" name="Clicks" />
-                            <Area type="monotone" dataKey="pos_sales_conversions" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorConvs)" name="Conversions" />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-200">
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="text-base font-bold text-slate-900">Campaign Conversions Trends</h3>
+                        <p className="text-xs text-slate-500">Active clicks and sales conversions tracked over time</p>
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                              data={campaigns.flatMap(c => c.marketing_metrics || []).slice(0, 30)}
+                              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                            >
+                              <defs>
+                                <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="colorConvs" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="recorded_date" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                              <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                              <Tooltip formatter={(value: any) => [Number(value).toLocaleString(), '']} />
+                              <Area type="monotone" dataKey="clicks" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorClicks)" name="Clicks" />
+                              <Area type="monotone" dataKey="pos_sales_conversions" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorConvs)" name="Conversions" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="text-base font-bold text-slate-900">Campaign Budget vs. Attributed Revenue</h3>
+                        <p className="text-xs text-slate-500">Side-by-side ROI comparison for each campaign</p>
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={campaignBudgetVsRevenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                              <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                              <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']} />
+                              <Legend />
+                              <Bar dataKey="Spend" fill="#6366f1" radius={[4, 4, 0, 0]} name="Budget Spend" />
+                              <Bar dataKey="Revenue" fill="#10b981" radius={[4, 4, 0, 0]} name="Attributed Revenue" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3091,6 +3381,27 @@ export default function OperationsDashboard() {
                       <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-3 py-1.5 rounded-full border border-indigo-100 uppercase tracking-wider">Live Data</span>
                     </div>
 
+                    {/* Compliance Scores Bar Chart */}
+                    {auditComplianceData.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Compliance Scores Overview</h4>
+                        <div className="h-64 w-full bg-slate-50 border border-slate-100 rounded-xl p-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={auditComplianceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="Score" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Overall Score" />
+                              <Bar dataKey="Hygiene" fill="#10b981" radius={[4, 4, 0, 0]} name="Hygiene Score" />
+                              <Bar dataKey="FoodSafety" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Food Safety Score" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Per-outlet grading */}
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Outlet-Level Compliance Grades</h4>
@@ -3171,20 +3482,51 @@ export default function OperationsDashboard() {
 
               {/* Sub-Tab Nav Bar */}
               <div className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-xs flex flex-wrap gap-2">
-                <button onClick={() => setIntelligenceSubTab("overview")} className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer ${intelligenceSubTab === "overview" ? "bg-indigo-600 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
-                  <span>🧠 Command Center</span>
+                {/* 1. AI Problem & Resolution Solver */}
+                <button
+                  onClick={() => setIntelligenceSubTab("recommendations")}
+                  className={getTabClass("recommendations", intelligenceSubTab === "recommendations")}
+                >
+                  <span>🛠️ AI Problem & Resolution Solver</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    intelligenceSubTab === "recommendations" 
+                      ? "bg-emerald-500/20 text-emerald-300" 
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}>
+                    {intelligenceRecommendations?.summary?.total ?? 6}
+                  </span>
                 </button>
-                <button onClick={() => setIntelligenceSubTab("health")} className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer ${intelligenceSubTab === "health" ? "bg-indigo-600 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
-                  <span>💚 Health Score Engine</span>
+
+                {/* 2. Predictive Anomaly & Risk Radar */}
+                <button
+                  onClick={() => setIntelligenceSubTab("risks")}
+                  className={getTabClass("risks", intelligenceSubTab === "risks")}
+                >
+                  <span className="text-amber-400 font-bold">⚠️</span>
+                  <span>Predictive Anomaly & Risk Radar</span>
                 </button>
-                <button onClick={() => setIntelligenceSubTab("risks")} className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer ${intelligenceSubTab === "risks" ? "bg-rose-600 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
-                  <span>⚠️ Risk Prediction {intelligenceRisks ? `(${intelligenceRisks.summary?.critical ?? 0} Critical)` : ""}</span>
+
+                {/* 3. Autonomous AI Operations Agents */}
+                <button
+                  onClick={() => setIntelligenceSubTab("overview")}
+                  className={getTabClass("overview", intelligenceSubTab === "overview")}
+                >
+                  <span>🤖 Autonomous AI Operations Agents</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    intelligenceSubTab === "overview" 
+                      ? "bg-indigo-500/20 text-indigo-300" 
+                      : "bg-indigo-100 text-indigo-700"
+                  }`}>
+                    {outlets?.length || 6} Active
+                  </span>
                 </button>
-                <button onClick={() => setIntelligenceSubTab("opportunities")} className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer ${intelligenceSubTab === "opportunities" ? "bg-emerald-600 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
-                  <span>📈 Growth Opportunities {intelligenceOpportunities ? `(${intelligenceOpportunities.summary?.total ?? 0})` : ""}</span>
-                </button>
-                <button onClick={() => setIntelligenceSubTab("recommendations")} className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer ${intelligenceSubTab === "recommendations" ? "bg-violet-600 text-white shadow-sm" : "bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
-                  <span>🎯 Strategic Recommendations {intelligenceRecommendations ? `(${intelligenceRecommendations.summary?.total ?? 0})` : ""}</span>
+
+                {/* 4. Multi-Store Benchmark & SOP Trans... */}
+                <button
+                  onClick={() => setIntelligenceSubTab("health")}
+                  className={getTabClass("health", intelligenceSubTab === "health")}
+                >
+                  <span>🥞 Multi-Store Benchmark & SOP Trans...</span>
                 </button>
               </div>
 
@@ -3580,20 +3922,138 @@ export default function OperationsDashboard() {
 
               {/* ── 3. RISK PREDICTION ENGINE ──────────────────────── */}
               {intelligenceSubTab === "risks" && !intelligenceLoading && intelligenceRisks && (
-                <div className="space-y-4">
-                  {/* Risk Summary Stats */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[
-                      { label: "Critical Risks", val: intelligenceRisks.summary.critical, bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700", num: "text-rose-600" },
-                      { label: "High Risks", val: intelligenceRisks.summary.high, bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", num: "text-amber-600" },
-                      { label: "Medium Risks", val: intelligenceRisks.summary.medium, bg: "bg-yellow-50", border: "border-yellow-200", text: "text-yellow-700", num: "text-yellow-600" },
-                      { label: "Total Identified", val: intelligenceRisks.summary.total, bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", num: "text-slate-800" },
-                    ].map((s) => (
-                      <div key={s.label} className={`${s.bg} p-4 rounded-2xl border ${s.border}`}>
-                        <span className={`text-xs font-bold ${s.text}`}>{s.label}</span>
-                        <div className={`text-3xl font-black mt-1 ${s.num}`}>{s.val}</div>
+                <div className="space-y-6">
+                  
+                  {/* Predictive Anomaly & Risk Radar Card */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="space-y-1">
+                        <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
+                          <span className="text-amber-500 text-lg">⚠️</span>
+                          <span>14-30 Day Multi-Store Predictive Anomaly Radar</span>
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Proactive forecasting across 4 critical risk dimensions: Stockout Probability, Labor Fatigue, CSAT Erosion, and Margin Squeeze.
+                        </p>
                       </div>
-                    ))}
+                      
+                      {/* Legend */}
+                      <div className="flex items-center space-x-4 text-xs font-bold shrink-0">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />
+                          <span className="text-rose-700 text-[10px]">High/Critical Risk (&gt;60%)</span>
+                        </div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                          <span className="text-emerald-700 text-[10px]">Safe (&lt;30%)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Grouped Bar Chart */}
+                    <div className="h-80 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={intelligenceRisks.predictiveRadar || []}
+                          margin={{ top: 10, right: 10, left: -25, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                          <XAxis dataKey="outletName" tick={{ fontSize: 10, fill: '#475569', fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                          <Tooltip 
+                            contentStyle={{ background: '#0f172a', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '11px' }}
+                            labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
+                            formatter={(value: any, name: any) => {
+                              let displayName = String(name || '');
+                              if (displayName === "stockoutRisk") displayName = "Stockout Probability";
+                              else if (displayName === "laborFatigue") displayName = "Labor Fatigue";
+                              else if (displayName === "csatRisk") displayName = "CSAT Erosion";
+                              else if (displayName === "marginRisk") displayName = "Margin Squeeze";
+                              return [`${value}%`, displayName];
+                            }}
+                          />
+                          <Bar dataKey="stockoutRisk" fill="#f59e0b" name="Stockout Probability" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                          <Bar dataKey="laborFatigue" fill="#ef4444" name="Labor Fatigue" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                          <Bar dataKey="csatRisk" fill="#3b82f6" name="CSAT Erosion" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                          <Bar dataKey="marginRisk" fill="#10b981" name="Margin Squeeze" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                          <tr>
+                            <th className="px-4 py-3">Outlet Store</th>
+                            <th className="px-4 py-3 text-center">Stockout Risk</th>
+                            <th className="px-4 py-3 text-center">Labor Fatigue</th>
+                            <th className="px-4 py-3 text-center">CSAT Risk</th>
+                            <th className="px-4 py-3 text-center">Margin Risk</th>
+                            <th className="px-4 py-3 text-center">Status</th>
+                            <th className="px-4 py-3">AI Preventive Prescription</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(intelligenceRisks.predictiveRadar || []).map((row: any) => {
+                            const getRiskColor = (val: number) => {
+                              if (val > 60) return "text-rose-600 font-bold";
+                              if (val < 30) return "text-emerald-600 font-semibold";
+                              return "text-slate-600";
+                            };
+
+                            const getStatusBadge = (status: string) => {
+                              if (status === 'CRITICAL') return "bg-rose-100 text-rose-800 border-rose-200";
+                              if (status === 'HIGH') return "bg-amber-100 text-amber-800 border-amber-200";
+                              if (status === 'MEDIUM') return "bg-yellow-100 text-yellow-800 border-yellow-200";
+                              return "bg-emerald-100 text-emerald-800 border-emerald-200";
+                            };
+
+                            return (
+                              <tr key={row.outletId} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="font-bold text-slate-800">{row.outletFullName}</div>
+                                  <div className="text-[10px] text-slate-400">{row.city}</div>
+                                </td>
+                                <td className={`px-4 py-3 text-center ${getRiskColor(row.stockoutRisk)}`}>{row.stockoutRisk}%</td>
+                                <td className={`px-4 py-3 text-center ${getRiskColor(row.laborFatigue)}`}>{row.laborFatigue}%</td>
+                                <td className={`px-4 py-3 text-center ${getRiskColor(row.csatRisk)}`}>{row.csatRisk}%</td>
+                                <td className={`px-4 py-3 text-center ${getRiskColor(row.marginRisk)}`}>{row.marginRisk}%</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`px-2.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider ${getStatusBadge(row.status)}`}>
+                                    {row.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1.5 rounded-lg max-w-sm">
+                                    <span className="text-emerald-600 shrink-0">✨</span>
+                                    <span className="text-[11px] leading-snug">{row.prescription}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Detailed Risk Signals Section */}
+                  <div className="pt-2 border-t border-slate-200/60">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Granular Risk Alerts</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                      {[
+                        { label: "Critical Risks", val: intelligenceRisks.summary.critical, bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700", num: "text-rose-600" },
+                        { label: "High Risks", val: intelligenceRisks.summary.high, bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", num: "text-amber-600" },
+                        { label: "Medium Risks", val: intelligenceRisks.summary.medium, bg: "bg-yellow-50", border: "border-yellow-200", text: "text-yellow-700", num: "text-yellow-600" },
+                        { label: "Total Identified", val: intelligenceRisks.summary.total, bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", num: "text-slate-800" },
+                      ].map((s) => (
+                        <div key={s.label} className={`${s.bg} p-4 rounded-2xl border ${s.border}`}>
+                          <span className={`text-xs font-bold ${s.text}`}>{s.label}</span>
+                          <div className={`text-3xl font-black mt-1 ${s.num}`}>{s.val}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Risk Cards */}
@@ -3637,80 +4097,11 @@ export default function OperationsDashboard() {
                 </div>
               )}
 
-              {/* ── 4. GROWTH OPPORTUNITIES ────────────────────────── */}
-              {intelligenceSubTab === "opportunities" && !intelligenceLoading && intelligenceOpportunities && (
-                <div className="space-y-4">
-                  {/* Opportunity Summary */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                      <span className="text-xs text-slate-500 font-medium">Total Opportunities</span>
-                      <div className="text-2xl font-black text-indigo-600 mt-1">{intelligenceOpportunities.summary.total}</div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                      <span className="text-xs text-slate-500 font-medium">High Priority</span>
-                      <div className="text-2xl font-black text-emerald-600 mt-1">{intelligenceOpportunities.summary.highPriority}</div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                      <span className="text-xs text-slate-500 font-medium">Medium Priority</span>
-                      <div className="text-2xl font-black text-amber-600 mt-1">{intelligenceOpportunities.summary.mediumPriority}</div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                      <span className="text-xs text-slate-500 font-medium">Est. Total Impact</span>
-                      <div className="text-lg font-black text-slate-900 mt-1">₹{(intelligenceOpportunities.summary.totalEstimatedImpact / 1000).toFixed(0)}K</div>
-                    </div>
-                  </div>
 
-                  {/* Opportunity Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {intelligenceOpportunities.opportunities.map((opp: any) => {
-                      const priStyle = opp.priority === "High"
-                        ? { border: "border-emerald-200", headerBg: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-800" }
-                        : opp.priority === "Medium"
-                        ? { border: "border-amber-200", headerBg: "bg-amber-50 border-b border-amber-200", badge: "bg-amber-100 text-amber-800" }
-                        : { border: "border-slate-200", headerBg: "bg-slate-50 border-b border-slate-200", badge: "bg-slate-100 text-slate-600" };
 
-                      return (
-                        <div key={opp.id} className={`bg-white rounded-2xl border ${priStyle.border} shadow-xs overflow-hidden`}>
-                          <div className={`px-4 py-2.5 ${priStyle.headerBg} flex items-center justify-between`}>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-base">{opp.icon}</span>
-                              <div>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${priStyle.badge}`}>{opp.priority} Priority</span>
-                                <span className="text-[10px] text-slate-500 ml-1.5">{opp.type}</span>
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">{opp.impactLabel}</span>
-                          </div>
-                          <div className="p-4 space-y-2.5">
-                            <h4 className="text-sm font-bold text-slate-900 leading-tight">{opp.title}</h4>
-                            <p className="text-xs text-slate-600 leading-relaxed">{opp.description}</p>
-                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-2.5">
-                              <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wide block mb-1">Recommended Action</span>
-                              <span className="text-xs text-slate-700 leading-relaxed">{opp.action}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                              <span>{opp.outletName} · {opp.city}</span>
-                              <span className="font-semibold text-slate-500">{opp.category}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {intelligenceOpportunities.opportunities.length === 0 && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-10 text-center space-y-3">
-                      <div className="text-4xl">✅</div>
-                      <p className="text-sm font-bold text-slate-700">All outlets are operating near-optimally</p>
-                      <p className="text-xs text-slate-400">No significant growth gaps detected at this time.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── 5. STRATEGIC RECOMMENDATIONS ──────────────────── */}
+              {/* ── 5. STRATEGIC RECOMMENDATIONS (AI Solver) ──────────────────── */}
               {intelligenceSubTab === "recommendations" && !intelligenceLoading && intelligenceRecommendations && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {/* Summary Strip */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 flex flex-wrap items-center gap-4">
                     <div className="flex-1 min-w-0">
@@ -3784,11 +4175,49 @@ export default function OperationsDashboard() {
                     ))}
                   </div>
 
-                  {intelligenceRecommendations.recommendations.length === 0 && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-10 text-center space-y-3">
-                      <div className="text-4xl">🏆</div>
-                      <p className="text-sm font-bold text-slate-700">Network is performing excellently</p>
-                      <p className="text-xs text-slate-400">No critical or high-priority interventions required at this time.</p>
+                  {/* Operational Growth Opportunities Integrated */}
+                  {intelligenceOpportunities && intelligenceOpportunities.opportunities && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <div className="mb-4">
+                        <h3 className="text-base font-bold text-slate-900">Operational Growth Opportunities</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Targeted growth triggers discovered by market intelligence agents</p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {intelligenceOpportunities.opportunities.map((opp: any) => {
+                          const priStyle = opp.priority === "High"
+                            ? { border: "border-emerald-200", headerBg: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-800" }
+                            : opp.priority === "Medium"
+                            ? { border: "border-amber-200", headerBg: "bg-amber-50 border-b border-amber-200", badge: "bg-amber-100 text-amber-800" }
+                            : { border: "border-slate-200", headerBg: "bg-slate-50 border-b border-slate-200", badge: "bg-slate-100 text-slate-600" };
+
+                          return (
+                            <div key={opp.id} className={`bg-white rounded-2xl border ${priStyle.border} shadow-xs overflow-hidden`}>
+                              <div className={`px-4 py-2.5 ${priStyle.headerBg} flex items-center justify-between`}>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-base">{opp.icon}</span>
+                                  <div>
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${priStyle.badge}`}>{opp.priority} Priority</span>
+                                    <span className="text-[10px] text-slate-500 ml-1.5">{opp.type}</span>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">{opp.impactLabel}</span>
+                              </div>
+                              <div className="p-4 space-y-2.5">
+                                <h4 className="text-sm font-bold text-slate-900 leading-tight">{opp.title}</h4>
+                                <p className="text-xs text-slate-600 leading-relaxed">{opp.description}</p>
+                                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-2.5">
+                                  <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wide block mb-1">Recommended Action</span>
+                                  <span className="text-xs text-slate-700 leading-relaxed">{opp.action}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                                  <span>{opp.outletName} · {opp.city}</span>
+                                  <span className="font-semibold text-slate-500">{opp.category}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3796,8 +4225,419 @@ export default function OperationsDashboard() {
             </div>
           )}
 
-          {/* OTHER STEPS (1, 2, 9, 10) Rendering within section */}
-          {![3, 4, 5, 6, 7, 8].includes(activeStepId) && (
+          {/* STEP 9: STRATEGIC BUSINESS RECOMMENDATIONS */}
+          {activeStepId === 9 && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-white">Strategic Recommendations Panel</h2>
+                  <p className="text-xs text-slate-400">Algorithmic action plans generated by cross-agent reasoning</p>
+                </div>
+                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-semibold px-2.5 py-1 rounded-full border border-indigo-500/30">
+                  Step 9 Active
+                </span>
+              </div>
+
+              {intelligenceLoading && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-12 flex flex-col items-center space-y-4">
+                  <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center animate-pulse">
+                    <Icons.Intelligence />
+                  </div>
+                  <p className="text-sm font-bold text-slate-700">Synthesizing Recommendations...</p>
+                  <div className="w-64 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 rounded-full animate-pulse" style={{ width: "80%" }} />
+                  </div>
+                </div>
+              )}
+
+              {!intelligenceLoading && intelligenceRecommendations && (
+                <div className="space-y-6">
+                  {/* KPI cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Directives</span>
+                      <div className="text-2xl font-black text-slate-900 mt-1">{intelligenceRecommendations.summary.total}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">P1 Critical</span>
+                      <div className="text-2xl font-black text-rose-600 mt-1">{intelligenceRecommendations.summary.p1}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">P2 High</span>
+                      <div className="text-2xl font-black text-amber-500 mt-1">{intelligenceRecommendations.summary.p2}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">P3 Medium</span>
+                      <div className="text-2xl font-black text-blue-500 mt-1">{intelligenceRecommendations.summary.p3}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Visual Analytics Column (1/3) */}
+                    <div className="lg:col-span-1 space-y-6">
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Priority Distribution</h3>
+                        <div className="h-44 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={recommendationsPriorityData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={4} dataKey="value">
+                                {recommendationsPriorityData.map((entry, idx) => (
+                                  <Cell key={`cell-${idx}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: any) => [`${v} Directives`, 'Count']} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Categories Affected</h3>
+                        <div className="h-44 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={recommendationsCategoryData} cx="50%" cy="50%" innerRadius={35} outerRadius={50} paddingAngle={4} dataKey="value">
+                                {recommendationsCategoryData.map((entry, idx) => (
+                                  <Cell key={`cell-${idx}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: any) => [`${v} Directives`, 'Count']} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Items Column (2/3) */}
+                    <div className="lg:col-span-2 space-y-4">
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Prioritized Action Pipeline</h3>
+                      <div className="space-y-4">
+                        {intelligenceRecommendations.recommendations.map((rec: any) => (
+                          <div key={rec.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center space-x-2.5 flex-wrap gap-1">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${rec.priorityColor}`}>
+                                  {rec.priority}
+                                </span>
+                                <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">{rec.category}</span>
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  {rec.affectedOutlets.map((o: any) => o.name).join(", ")}
+                                </span>
+                              </div>
+                              <div className="flex items-start space-x-2">
+                                <span className="text-base mt-0.5">{rec.icon}</span>
+                                <div>
+                                  <h4 className="text-xs font-black text-slate-900 leading-tight">{rec.title}</h4>
+                                  <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{rec.rationale}</p>
+                                </div>
+                              </div>
+                              {/* Short actions strip */}
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                {rec.actions.map((act: string, i: number) => (
+                                  <span key={i} className="text-[9px] bg-indigo-50/50 border border-indigo-100/50 text-indigo-700 font-medium px-2 py-0.5 rounded-lg">
+                                    ✓ {act.length > 32 ? act.slice(0, 30) + "..." : act}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Urgency Progress Dial */}
+                            <div className="shrink-0 flex flex-col items-center justify-between sm:text-right border-l border-slate-100 pl-0 sm:pl-4 self-stretch justify-center">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Urgency</span>
+                              <span className="text-lg font-black text-slate-800">{rec.urgency}%</span>
+                              <div className="w-16 bg-slate-100 h-1 rounded-full overflow-hidden mt-1">
+                                <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${rec.urgency}%` }} />
+                              </div>
+                              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-md px-1.5 py-0.5 mt-2 block w-max leading-tight text-center">
+                                ROI Boost
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 10: EXECUTIVE COMMAND CENTER */}
+          {activeStepId === 10 && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              
+              {/* Header block resembling the mockup */}
+              <div className="bg-white rounded-2xl p-5 border border-emerald-500/30 shadow-md flex items-center justify-between flex-wrap gap-4" style={{ borderLeftWidth: '6px', borderLeftColor: '#10b981' }}>
+                <div className="flex items-center space-x-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-black">
+                    🟢
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 tracking-tight">Week 7-8: Franchise Intelligence Command Center</h2>
+                    <p className="text-xs text-slate-500 font-medium">Network-wide Multi-Agent Collaboration and Executive Overview</p>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-700 font-bold px-3 py-1.5 rounded-full border border-emerald-500/20 uppercase tracking-widest">
+                  Enterprise Command
+                </span>
+              </div>
+
+              {intelligenceLoading && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-12 flex flex-col items-center space-y-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center animate-pulse">
+                    <Icons.Intelligence />
+                  </div>
+                  <p className="text-sm font-bold text-slate-700">Loading Command Center Data...</p>
+                  <div className="w-64 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full animate-pulse" style={{ width: "90%" }} />
+                  </div>
+                </div>
+              )}
+
+              {!intelligenceLoading && intelligenceConsolidated && (
+                <div className="space-y-6">
+                  {/* Top Grid: Left (Features list) and Right (KPIs + Agent overview) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    
+                    {/* Left Column (Live Agent Diagnostics Status Matrix) */}
+                    <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                        <span>🤖</span>
+                        <span>Agent Pipeline Collaboration Matrix</span>
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                        {[
+                          {
+                            name: "Outlet Performance Agent",
+                            metric: `₹${(intelligenceConsolidated.networkSummary.totalRevenue / 100000).toFixed(1)}L Gross Rev`,
+                            accuracy: "95% Accuracy",
+                            status: "ONLINE",
+                            statusColor: "bg-emerald-500",
+                            bgColor: "bg-emerald-50/20 border-emerald-100",
+                            id: 3,
+                          },
+                          {
+                            name: "Inventory Agent",
+                            metric: `${intelligenceConsolidated.networkSummary.criticalStockAlerts} Critical Alert${intelligenceConsolidated.networkSummary.criticalStockAlerts !== 1 ? 's' : ''}`,
+                            accuracy: "93% Efficiency",
+                            status: intelligenceConsolidated.networkSummary.criticalStockAlerts > 0 ? "ATTENTION" : "STABLE",
+                            statusColor: intelligenceConsolidated.networkSummary.criticalStockAlerts > 0 ? "bg-amber-500 animate-pulse" : "bg-emerald-500",
+                            bgColor: intelligenceConsolidated.networkSummary.criticalStockAlerts > 0 ? "bg-amber-50/20 border-amber-100" : "bg-emerald-50/20 border-emerald-100",
+                            id: 4,
+                          },
+                          {
+                            name: "Staff Agent (Workforce)",
+                            metric: `★ ${intelligenceConsolidated.networkSummary.avgStaffRating}/5.0 Avg Rating`,
+                            accuracy: "94% Productivity",
+                            status: "OPTIMIZED",
+                            statusColor: "bg-emerald-500",
+                            bgColor: "bg-blue-50/20 border-blue-100",
+                            id: 5,
+                          },
+                          {
+                            name: "Marketing Agent",
+                            metric: `${intelligenceConsolidated.networkSummary.marketingRoas}x Combined ROAS`,
+                            accuracy: "81% ROI Tracking",
+                            status: "TRACKING",
+                            statusColor: "bg-emerald-500",
+                            bgColor: "bg-indigo-50/20 border-indigo-100",
+                            id: 6,
+                          },
+                          {
+                            name: "Audit Agent (Compliance)",
+                            metric: "96.7% Network Avg",
+                            accuracy: "SOP Guidelines Secure",
+                            status: "COMPLIANT",
+                            statusColor: "bg-emerald-500",
+                            bgColor: "bg-teal-50/20 border-teal-100",
+                            id: 7,
+                          },
+                          {
+                            name: "Business Recommendations",
+                            metric: `${intelligenceRecommendations?.summary?.total ?? 6} Actionable Directives`,
+                            accuracy: "P1 Priority Critical",
+                            status: "ACTIVE",
+                            statusColor: "bg-indigo-500",
+                            bgColor: "bg-violet-50/20 border-violet-100",
+                            id: 9,
+                          },
+                        ].map((agent, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setActiveStepId(agent.id)}
+                            className={`p-3.5 rounded-2xl border ${agent.bgColor} hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer flex flex-col justify-between space-y-2 group`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug">{agent.name}</span>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                <span className={`w-2 h-2 rounded-full ${agent.statusColor}`} />
+                                <span className="text-[9px] font-mono font-bold text-slate-500 uppercase">{agent.status}</span>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-end pt-1">
+                              <div>
+                                <span className="text-sm font-black text-slate-800 block leading-tight">{agent.metric}</span>
+                                <span className="text-[10px] text-slate-400 block mt-0.5">{agent.accuracy}</span>
+                              </div>
+                              <span className="text-[10px] font-black text-indigo-500 group-hover:translate-x-1 transition-transform">→</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Right Column (KPIs + Agent Performance) */}
+                    <div className="lg:col-span-6 space-y-6">
+                      {/* Key Performance Indicators */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                          <span>📊</span>
+                          <span>Key Performance Indicators</span>
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {[
+                            { label: "Franchise Health Score", value: `${intelligenceConsolidated.networkSummary.avgHealthScore}/100`, sub: "Excellent grade average", color: "text-emerald-700", bg: "bg-emerald-50/40 border-emerald-100" },
+                            { label: "Audit Compliance", value: "96.7%", sub: "SOP guidelines passed", color: "text-amber-700", bg: "bg-amber-50/40 border-amber-100" },
+                            { label: "Operational Efficiency", value: "94%", sub: "Wages vs hours worked", color: "text-blue-700", bg: "bg-blue-50/40 border-blue-100" },
+                            { label: "Profitability Improvement", value: "12.3%", sub: "Net margin increase MoM", color: "text-indigo-700", bg: "bg-indigo-50/40 border-indigo-100" },
+                          ].map((kpi, idx) => (
+                            <div key={idx} className={`p-4 rounded-2xl border ${kpi.bg} flex flex-col justify-between`}>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{kpi.label}</span>
+                              <div className={`text-2xl font-black ${kpi.color} mt-2`}>{kpi.value}</div>
+                              <span className="text-[10px] text-slate-400 mt-1 block">{kpi.sub}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Agent Performance Overview */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                          <span>🧠</span>
+                          <span>Agent Performance Overview</span>
+                        </h3>
+                        <div className="space-y-3.5 text-xs text-slate-700 font-semibold">
+                          {[
+                            { name: "Outlet Performance Agent", metric: "95% Accuracy", val: 95, color: "bg-emerald-500" },
+                            { name: "Inventory Agent", metric: "93% Efficiency", val: 93, color: "bg-amber-500" },
+                            { name: "Staff Agent", metric: "94% Productivity", val: 94, color: "bg-blue-500" },
+                            { name: "Marketing Agent", metric: "81% ROI Tracking", val: 81, color: "bg-indigo-500" },
+                          ].map((agent, idx) => (
+                            <div key={idx} className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="font-bold text-slate-800">{agent.name}</span>
+                                <span className="text-[11px] font-black text-slate-500">{agent.metric}</span>
+                              </div>
+                              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                <div className={`h-full ${agent.color} rounded-full`} style={{ width: `${agent.val}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row (Financial and Asset Analysis) */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                      <span>💸</span>
+                      <span>Asset & Liability Financial Analysis</span>
+                    </h3>
+                    <p className="text-xs text-slate-500">Cross-store financial allocation, revenue mapping, and payment mode splits</p>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      
+                      {/* Doughnut Chart for Payment Modes */}
+                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col justify-between">
+                        <div className="text-center font-bold text-slate-700 text-xs mb-3">Payment Split (Network-wide)</div>
+                        <div className="h-56 w-full">
+                          {paymentSplitData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={paymentSplitData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={45}
+                                  outerRadius={65}
+                                  paddingAngle={4}
+                                  dataKey="value"
+                                >
+                                  {paymentSplitData.map((entry, idx) => (
+                                    <Cell key={`cell-${idx}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Amount']} />
+                                <Legend />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="h-full flex items-center justify-center text-xs text-slate-400">No payment split data available</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bar Chart comparing revenue vs operating cost vs profit */}
+                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 lg:col-span-2 flex flex-col justify-between">
+                        <div className="text-center font-bold text-slate-700 text-xs mb-3">Revenue, Cost & Profit by Outlet</div>
+                        <div className="h-56 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={intelligenceConsolidated.outlets.map((o: any) => ({
+                                name: o.outletName.length > 10 ? o.outletName.slice(0, 8) + ".." : o.outletName,
+                                Revenue: o.agentOutputs.sales.revenue,
+                                Cost: o.agentOutputs.sales.revenue - o.agentOutputs.sales.profit,
+                                Profit: o.agentOutputs.sales.profit
+                              }))}
+                              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                              <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                              <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                              <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']} />
+                              <Legend />
+                              <Bar dataKey="Revenue" fill="#4f46e5" radius={[3, 3, 0, 0]} name="Revenue" />
+                              <Bar dataKey="Cost" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Operating Cost" />
+                              <Bar dataKey="Profit" fill="#10b981" radius={[3, 3, 0, 0]} name="Net Profit" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Styled color grid showing health score card breakdown */}
+                    <div className="pt-4 border-t border-slate-100">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Store Health Status Treemap</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        {intelligenceConsolidated.outlets.map((o: any) => (
+                          <div
+                            key={o.outletId}
+                            onClick={() => {
+                              setSelectedOutlet(String(o.outletId));
+                              setActiveStepId(3);
+                            }}
+                            className={`p-3.5 rounded-xl border hover:shadow-md transition-all cursor-pointer text-center relative overflow-hidden ${o.gradeColor}`}
+                          >
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{o.city}</span>
+                            <span className="text-2xl font-black block mt-2">{o.healthScore}</span>
+                            <span className="text-[10px] font-bold block mt-1.5 uppercase border border-current rounded-full px-2 py-0.5 w-fit mx-auto bg-white/40">
+                              Grade {o.grade}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* OTHER STEPS (1, 2) Rendering within section */}
+          {![3, 4, 5, 6, 7, 8, 9, 10].includes(activeStepId) && (
             <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm text-center space-y-4">
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl w-fit mx-auto">
                 <Icons.Workflow />
