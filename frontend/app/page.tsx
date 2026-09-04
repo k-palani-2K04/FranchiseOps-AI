@@ -354,6 +354,11 @@ export default function OperationsDashboard() {
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const [selectedLocationIds, setSelectedLocationIds] = useState<number[]>([]);
 
+  // Dashboard & Alerts (Step 10) States
+  const [alertFilter, setAlertFilter] = useState<"All" | "Critical" | "High" | "Medium">("All");
+  const [comparisonTab, setComparisonTab] = useState<"Health" | "Revenue" | "Margin" | "Audit">("Health");
+  const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Set<number>>(new Set());
+
   // ── Auth: use global context, redirect if not authenticated ──
   const { currentUser, logout, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -816,6 +821,75 @@ export default function OperationsDashboard() {
       color: colors[idx % colors.length]
     }));
   }, [intelligenceRecommendations]);
+
+  // Dashboard & Alerts computed data
+  const outletComparisonData = useMemo(() => {
+    if (!intelligenceConsolidated?.outlets) return [];
+    return intelligenceConsolidated.outlets.map((o: any) => ({
+      name: o.outletName.length > 12 ? o.outletName.slice(0, 10) + ".." : o.outletName,
+      Health: o.healthScore,
+      Revenue: Math.round(o.agentOutputs.sales.revenue / 100000 * 10) / 10,
+      Margin: Math.round(o.agentOutputs.sales.profit / Math.max(o.agentOutputs.sales.revenue, 1) * 100),
+      Audit: o.agentOutputs.audit?.avgScore ?? 75,
+    }));
+  }, [intelligenceConsolidated]);
+
+  const alertSeverityData = useMemo(() => {
+    if (!intelligenceRecommendations?.recommendations) return [
+      { name: "Critical", value: 0, fill: "#ef4444" },
+      { name: "High", value: 0, fill: "#f97316" },
+      { name: "Medium", value: 0, fill: "#eab308" },
+    ];
+    const recs = intelligenceRecommendations.recommendations;
+    return [
+      { name: "Critical", value: recs.filter((r: any) => r.priority === "P1").length, fill: "#ef4444" },
+      { name: "High", value: recs.filter((r: any) => r.priority === "P2").length, fill: "#f97316" },
+      { name: "Medium", value: recs.filter((r: any) => r.priority === "P3").length, fill: "#eab308" },
+    ];
+  }, [intelligenceRecommendations]);
+
+  const agentPerformanceScores = useMemo(() => {
+    if (!intelligenceConsolidated) return null;
+    const ns = intelligenceConsolidated.networkSummary;
+    const totalStock = (ns.criticalStockAlerts || 0) + (ns.lowStockAlerts || 0);
+    const invScore = Math.max(0, Math.round(100 - totalStock * 7));
+    const avgAudit = auditSessions.length > 0
+      ? Math.round(auditSessions.filter((s: any) => s.passFail !== "Pending").reduce((acc: number, s: any) => acc + s.overallScore, 0) / Math.max(auditSessions.filter((s: any) => s.passFail !== "Pending").length, 1))
+      : 70;
+    const mktScore = Math.min(100, Math.round((ns.marketingRoas || 1) / 25 * 100));
+    return {
+      outlet: ns.avgHealthScore ?? 79,
+      inventory: invScore,
+      workforce: Math.round(Math.min(100, ((ns.avgStaffRating ?? 4.0) / 5) * 100)),
+      marketing: mktScore,
+      audit: avgAudit,
+    };
+  }, [intelligenceConsolidated, auditSessions]);
+
+  const agentTrendData = useMemo(() => {
+    // Build synthetic 5-checkpoint sparkline data per agent for trend visualization
+    const base = agentPerformanceScores;
+    if (!base) return null;
+    const mkSeries = (final: number) => {
+      const v = [final - 8, final - 5, final - 3, final - 1, final].map(n => Math.max(20, Math.min(100, n + (Math.random() * 4 - 2))));
+      return [1, 2, 3, 4, 5].map((x, i) => ({ x, v: Math.round(v[i]) }));
+    };
+    return {
+      outlet: mkSeries(base.outlet),
+      inventory: mkSeries(base.inventory),
+      workforce: mkSeries(base.workforce),
+      marketing: mkSeries(base.marketing),
+      audit: mkSeries(base.audit),
+    };
+  }, [agentPerformanceScores]);
+
+  const filteredAlerts = useMemo(() => {
+    if (!intelligenceRecommendations?.recommendations) return [];
+    const recs = intelligenceRecommendations.recommendations;
+    if (alertFilter === "All") return recs;
+    const priorityMap: Record<string, string> = { Critical: "P1", High: "P2", Medium: "P3" };
+    return recs.filter((r: any) => r.priority === priorityMap[alertFilter]);
+  }, [intelligenceRecommendations, alertFilter]);
 
   // Franchise Health Score Simulator Memo
   const simulatedHealthScore = useMemo(() => {
@@ -4368,271 +4442,725 @@ export default function OperationsDashboard() {
           {activeStepId === 10 && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              {/* Header block resembling the mockup */}
-              <div className="bg-white rounded-2xl p-5 border border-emerald-500/30 shadow-md flex items-center justify-between flex-wrap gap-4" style={{ borderLeftWidth: '6px', borderLeftColor: '#10b981' }}>
-                <div className="flex items-center space-x-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-black">
-                    🟢
-                  </div>
+              {/* SECTION 1: LIVE FRANCHISE COMMAND CENTRE HEADER */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <h2 className="text-lg font-black text-slate-900 tracking-tight">Week 7-8: Franchise Intelligence Command Center</h2>
-                    <p className="text-xs text-slate-500 font-medium">Network-wide Multi-Agent Collaboration and Executive Overview</p>
+                    <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
+                      <span>LIVE FRANCHISE COMMAND CENTRE</span>
+                    </h1>
+                    <p className="text-xs text-slate-500 font-medium">Connected data from sales, inventory, workforce, marketing and audit operations.</p>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-emerald-50 text-emerald-700 border border-emerald-200/50 rounded-full px-3.5 py-1 text-xs font-bold shadow-xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>All agents live</span>
                   </div>
                 </div>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-700 font-bold px-3 py-1.5 rounded-full border border-emerald-500/20 uppercase tracking-widest">
-                  Enterprise Command
-                </span>
+
+                {/* 6 Clickable Nav Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {[
+                    { id: 3, name: "1. Outlet Performance", sub: "Sales, margin & ranking", icon: "Trend", active: false },
+                    { id: 4, name: "2. Inventory Intelligence", sub: "Stock cover & wastage", icon: "Inventory", active: false },
+                    { id: 5, name: "3. Workforce & Roster", sub: "Attendance & productivity", icon: "Staff", active: false },
+                    { id: 6, name: "4. Marketing Engine", sub: "Campaign ROAS & CAC", icon: "Marketing", active: false },
+                    { id: 7, name: "5. Audit & Compliance", sub: "SOP & safety checks", icon: "Audit", active: false },
+                    { id: 10, name: "6. Executive Overview", sub: "Consolidated health radar", icon: "Dashboard", active: true },
+                  ].map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => setActiveStepId(item.id)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between h-20 ${
+                        item.active
+                          ? "bg-white border-indigo-600 shadow-md ring-1 ring-indigo-500/20"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold text-slate-900 tracking-tight leading-snug">{item.name}</span>
+                        <div className={`p-1 rounded-md ${item.active ? "bg-indigo-50 text-indigo-600" : "bg-slate-50 text-slate-400"}`}>
+                          {item.icon === "Trend" && <Icons.Trend />}
+                          {item.icon === "Inventory" && <Icons.Inventory />}
+                          {item.icon === "Staff" && <Icons.Staff />}
+                          {item.icon === "Marketing" && <Icons.Marketing />}
+                          {item.icon === "Audit" && <Icons.Audit />}
+                          {item.icon === "Dashboard" && <Icons.Dashboard />}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium truncate">{item.sub}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Dark Banner */}
+                <div className="bg-[#0b1329] text-white rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm relative overflow-hidden">
+                  <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-slate-800/10 via-transparent to-transparent pointer-events-none" />
+                  <div className="space-y-1 z-10">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Live Network Monitoring</span>
+                    </div>
+                    <h2 className="text-2xl font-black tracking-tight">Dashboard & Alerts</h2>
+                    <p className="text-xs text-slate-400">Executive signals, exceptions and next actions across every franchise outlet.</p>
+                  </div>
+                  <button
+                    onClick={() => setAlertFilter("All")}
+                    className="px-5 py-2.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-xl text-xs font-bold transition-all z-10 cursor-pointer shadow-xs"
+                  >
+                    All-agent view
+                  </button>
+                </div>
               </div>
 
-              {intelligenceLoading && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-12 flex flex-col items-center space-y-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center animate-pulse">
-                    <Icons.Intelligence />
+              {/* SECTION 2: TOP KPI STRIP (4 cards) */}
+              {intelligenceConsolidated && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between h-28">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Network Health</span>
+                    <div className="text-3xl font-black text-emerald-600 tracking-tight mt-1">
+                      {intelligenceConsolidated.networkSummary.avgHealthScore}/100
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-2 font-medium">{outlets.length} outlets monitored</span>
                   </div>
-                  <p className="text-sm font-bold text-slate-700">Loading Command Center Data...</p>
-                  <div className="w-64 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full animate-pulse" style={{ width: "90%" }} />
+
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between h-28">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Network Revenue</span>
+                    <div className="text-3xl font-black text-indigo-600 tracking-tight mt-1">
+                      ₹{(intelligenceConsolidated.networkSummary.totalRevenue / 100000).toFixed(1)}L
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-2 font-medium">
+                      Profit ₹{(intelligenceConsolidated.networkSummary.totalProfit / 100000).toFixed(1)}L
+                    </span>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between h-28">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Stock Alerts</span>
+                    <div className="text-3xl font-black text-amber-500 tracking-tight mt-1">
+                      {intelligenceConsolidated.networkSummary.criticalStockAlerts + intelligenceConsolidated.networkSummary.lowStockAlerts}
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-2 font-medium">
+                      {intelligenceConsolidated.networkSummary.criticalStockAlerts} critical
+                    </span>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between h-28">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Marketing ROAS</span>
+                    <div className="text-3xl font-black text-violet-600 tracking-tight mt-1">
+                      {intelligenceConsolidated.networkSummary.marketingRoas}x
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-2 font-medium">{campaigns.length} campaigns active</span>
                   </div>
                 </div>
               )}
 
-              {!intelligenceLoading && intelligenceConsolidated && (
-                <div className="space-y-6">
-                  {/* Top Grid: Left (Features list) and Right (KPIs + Agent overview) */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    
-                    {/* Left Column (Live Agent Diagnostics Status Matrix) */}
-                    <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
-                        <span>🤖</span>
-                        <span>Agent Pipeline Collaboration Matrix</span>
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
-                        {[
-                          {
-                            name: "Outlet Performance Agent",
-                            metric: `₹${(intelligenceConsolidated.networkSummary.totalRevenue / 100000).toFixed(1)}L Gross Rev`,
-                            accuracy: "95% Accuracy",
-                            status: "ONLINE",
-                            statusColor: "bg-emerald-500",
-                            bgColor: "bg-emerald-50/20 border-emerald-100",
-                            id: 3,
-                          },
-                          {
-                            name: "Inventory Agent",
-                            metric: `${intelligenceConsolidated.networkSummary.criticalStockAlerts} Critical Alert${intelligenceConsolidated.networkSummary.criticalStockAlerts !== 1 ? 's' : ''}`,
-                            accuracy: "93% Efficiency",
-                            status: intelligenceConsolidated.networkSummary.criticalStockAlerts > 0 ? "ATTENTION" : "STABLE",
-                            statusColor: intelligenceConsolidated.networkSummary.criticalStockAlerts > 0 ? "bg-amber-500 animate-pulse" : "bg-emerald-500",
-                            bgColor: intelligenceConsolidated.networkSummary.criticalStockAlerts > 0 ? "bg-amber-50/20 border-amber-100" : "bg-emerald-50/20 border-emerald-100",
-                            id: 4,
-                          },
-                          {
-                            name: "Staff Agent (Workforce)",
-                            metric: `★ ${intelligenceConsolidated.networkSummary.avgStaffRating}/5.0 Avg Rating`,
-                            accuracy: "94% Productivity",
-                            status: "OPTIMIZED",
-                            statusColor: "bg-emerald-500",
-                            bgColor: "bg-blue-50/20 border-blue-100",
-                            id: 5,
-                          },
-                          {
-                            name: "Marketing Agent",
-                            metric: `${intelligenceConsolidated.networkSummary.marketingRoas}x Combined ROAS`,
-                            accuracy: "81% ROI Tracking",
-                            status: "TRACKING",
-                            statusColor: "bg-emerald-500",
-                            bgColor: "bg-indigo-50/20 border-indigo-100",
-                            id: 6,
-                          },
-                          {
-                            name: "Audit Agent (Compliance)",
-                            metric: "96.7% Network Avg",
-                            accuracy: "SOP Guidelines Secure",
-                            status: "COMPLIANT",
-                            statusColor: "bg-emerald-500",
-                            bgColor: "bg-teal-50/20 border-teal-100",
-                            id: 7,
-                          },
-                          {
-                            name: "Business Recommendations",
-                            metric: `${intelligenceRecommendations?.summary?.total ?? 6} Actionable Directives`,
-                            accuracy: "P1 Priority Critical",
-                            status: "ACTIVE",
-                            statusColor: "bg-indigo-500",
-                            bgColor: "bg-violet-50/20 border-violet-100",
-                            id: 9,
-                          },
-                        ].map((agent, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => setActiveStepId(agent.id)}
-                            className={`p-3.5 rounded-2xl border ${agent.bgColor} hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer flex flex-col justify-between space-y-2 group`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug">{agent.name}</span>
-                              <div className="flex items-center space-x-1.5 shrink-0">
-                                <span className={`w-2 h-2 rounded-full ${agent.statusColor}`} />
-                                <span className="text-[9px] font-mono font-bold text-slate-500 uppercase">{agent.status}</span>
-                              </div>
-                            </div>
-                            <div className="flex justify-between items-end pt-1">
-                              <div>
-                                <span className="text-sm font-black text-slate-800 block leading-tight">{agent.metric}</span>
-                                <span className="text-[10px] text-slate-400 block mt-0.5">{agent.accuracy}</span>
-                              </div>
-                              <span className="text-[10px] font-black text-indigo-500 group-hover:translate-x-1 transition-transform">→</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+              {/* SECTION 3: TWO COLUMN AGENT OVERVIEW / COMMAND CENTRE GUIDELINES */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left: Agent Performance Overview */}
+                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">Agent performance overview</h3>
+                      <p className="text-[11px] text-slate-400 font-medium">Visual health score across the connected franchise agents.</p>
                     </div>
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md border border-emerald-200/40">
+                      Live scoring
+                    </span>
+                  </div>
 
-                    {/* Right Column (KPIs + Agent Performance) */}
-                    <div className="lg:col-span-6 space-y-6">
-                      {/* Key Performance Indicators */}
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
-                          <span>📊</span>
-                          <span>Key Performance Indicators</span>
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          {[
-                            { label: "Franchise Health Score", value: `${intelligenceConsolidated.networkSummary.avgHealthScore}/100`, sub: "Excellent grade average", color: "text-emerald-700", bg: "bg-emerald-50/40 border-emerald-100" },
-                            { label: "Audit Compliance", value: "96.7%", sub: "SOP guidelines passed", color: "text-amber-700", bg: "bg-amber-50/40 border-amber-100" },
-                            { label: "Operational Efficiency", value: "94%", sub: "Wages vs hours worked", color: "text-blue-700", bg: "bg-blue-50/40 border-blue-100" },
-                            { label: "Profitability Improvement", value: "12.3%", sub: "Net margin increase MoM", color: "text-indigo-700", bg: "bg-indigo-50/40 border-indigo-100" },
-                          ].map((kpi, idx) => (
-                            <div key={idx} className={`p-4 rounded-2xl border ${kpi.bg} flex flex-col justify-between`}>
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{kpi.label}</span>
-                              <div className={`text-2xl font-black ${kpi.color} mt-2`}>{kpi.value}</div>
-                              <span className="text-[10px] text-slate-400 mt-1 block">{kpi.sub}</span>
-                            </div>
-                          ))}
+                  {agentPerformanceScores && (
+                    <div className="space-y-4">
+                      {[
+                        { name: "Outlet Performance", label: "Network health", val: agentPerformanceScores.outlet, color: "bg-cyan-500" },
+                        { name: "Inventory Control", label: "stock alerts", val: agentPerformanceScores.inventory, color: "bg-amber-500" },
+                        { name: "Workforce", label: "Staff quality", val: agentPerformanceScores.workforce, color: "bg-indigo-500" },
+                        { name: "Marketing", label: "ROI tracking", val: agentPerformanceScores.marketing, color: "bg-rose-500" },
+                        { name: "Audit Compliance", label: "Compliance score", val: agentPerformanceScores.audit, color: "bg-emerald-500" },
+                      ].map((item, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between text-xs font-bold text-slate-700">
+                            <span>{item.name}</span>
+                            <span className="text-slate-500">{item.val}% <span className="text-[10px] font-normal text-slate-400">{item.label}</span></span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                            <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${item.val}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Command Centre */}
+                <div className="lg:col-span-5 bg-indigo-50/20 border border-indigo-100 rounded-2xl p-6 flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block">Command Centre</span>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">From signals to action</h3>
+                  </div>
+                  
+                  <div className="space-y-4 my-6">
+                    {[
+                      { num: "1", title: "Monitor", desc: "Track live KPIs and agent signals across your network." },
+                      { num: "2", title: "Prioritize", desc: "Identify critical risks and below-threshold operations." },
+                      { num: "3", title: "Act", desc: "Assign recommended actions and acknowledge resolution tasks." }
+                    ].map((step, idx) => (
+                      <div key={idx} className="flex items-start space-x-3 text-xs">
+                        <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0">
+                          {step.num}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-slate-800">{step.title}</h4>
+                          <p className="text-[11px] text-slate-500 leading-normal">{step.desc}</p>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
-                      {/* Agent Performance Overview */}
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
-                          <span>🧠</span>
-                          <span>Agent Performance Overview</span>
-                        </h3>
-                        <div className="space-y-3.5 text-xs text-slate-700 font-semibold">
-                          {[
-                            { name: "Outlet Performance Agent", metric: "95% Accuracy", val: 95, color: "bg-emerald-500" },
-                            { name: "Inventory Agent", metric: "93% Efficiency", val: 93, color: "bg-amber-500" },
-                            { name: "Staff Agent", metric: "94% Productivity", val: 94, color: "bg-blue-500" },
-                            { name: "Marketing Agent", metric: "81% ROI Tracking", val: 81, color: "bg-indigo-500" },
-                          ].map((agent, idx) => (
-                            <div key={idx} className="space-y-1">
-                              <div className="flex justify-between">
-                                <span className="font-bold text-slate-800">{agent.name}</span>
-                                <span className="text-[11px] font-black text-slate-500">{agent.metric}</span>
-                              </div>
-                              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                <div className={`h-full ${agent.color} rounded-full`} style={{ width: `${agent.val}%` }} />
-                              </div>
-                            </div>
-                          ))}
+              {/* SECTION 4: AGENT TREND SNAPSHOTS (5 mini charts) */}
+              {agentTrendData && agentPerformanceScores && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">Agent trend snapshots</h3>
+                      <p className="text-[11px] text-slate-400 font-medium">Visual performance patterns for each agent across the latest reporting checkpoints.</p>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-bold tracking-wider">Last 5 checkpoints</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {[
+                      { name: "Outlet Performance", desc: "Network health", val: agentPerformanceScores.outlet, data: agentTrendData.outlet, color: "#06b6d4" },
+                      { name: "Inventory Control", desc: "stock alerts", val: agentPerformanceScores.inventory, data: agentTrendData.inventory, color: "#f59e0b" },
+                      { name: "Workforce", desc: "Staff quality", val: agentPerformanceScores.workforce, data: agentTrendData.workforce, color: "#6366f1" },
+                      { name: "Marketing", desc: "ROI tracking", val: agentPerformanceScores.marketing, data: agentTrendData.marketing, color: "#f43f5e" },
+                      { name: "Audit Compliance", desc: "Compliance score", val: agentPerformanceScores.audit, data: agentTrendData.audit, color: "#10b981" },
+                    ].map((card, idx) => (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-xs h-36">
+                        <div>
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] font-bold text-slate-900 leading-tight w-2/3">{card.name}</span>
+                            <span className="text-base font-black text-slate-800 shrink-0">{card.val}%</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">{card.desc}</span>
+                        </div>
+                        <div className="h-14 w-full mt-2">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={card.data} margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+                              <defs>
+                                <linearGradient id={`gradient-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor={card.color} stopOpacity={0.2} />
+                                  <stop offset="95%" stopColor={card.color} stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <Area type="monotone" dataKey="v" stroke={card.color} strokeWidth={1.5} fillOpacity={1} fill={`url(#gradient-${idx})`} />
+                            </AreaChart>
+                          </ResponsiveContainer>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 5: TWO-COLUMN COMPARISON GRAPH ROW */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left: Outlet Comparison Graph */}
+                <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">Outlet comparison graph</h3>
+                      <p className="text-[11px] text-slate-400 font-medium">Compare every outlet without leaving this screen.</p>
+                    </div>
+                    
+                    {/* Toggle tabs */}
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      {["Health", "Revenue", "Margin", "Audit"].map((tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setComparisonTab(tab as any)}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                            comparisonTab === tab
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          {tab}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Bottom Row (Financial and Asset Analysis) */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center space-x-2">
-                      <span>💸</span>
-                      <span>Asset & Liability Financial Analysis</span>
-                    </h3>
-                    <p className="text-xs text-slate-500">Cross-store financial allocation, revenue mapping, and payment mode splits</p>
+                  <div className="h-64 w-full">
+                    {outletComparisonData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={outletComparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                          <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                          <Tooltip formatter={(value) => [value, comparisonTab === "Revenue" ? "₹ (Lakhs)" : "%"]} />
+                          <Bar dataKey={comparisonTab} fill="#6366f1" radius={[3, 3, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-xs text-slate-400">Loading outlets data...</div>
+                    )}
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      
-                      {/* Doughnut Chart for Payment Modes */}
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col justify-between">
-                        <div className="text-center font-bold text-slate-700 text-xs mb-3">Payment Split (Network-wide)</div>
-                        <div className="h-56 w-full">
-                          {paymentSplitData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={paymentSplitData}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={45}
-                                  outerRadius={65}
-                                  paddingAngle={4}
-                                  dataKey="value"
-                                >
-                                  {paymentSplitData.map((entry, idx) => (
-                                    <Cell key={`cell-${idx}`} fill={entry.color} />
-                                  ))}
-                                </Pie>
-                                <Tooltip formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Amount']} />
-                                <Legend />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          ) : (
-                            <div className="h-full flex items-center justify-center text-xs text-slate-400">No payment split data available</div>
-                          )}
+                {/* Right: Alert Severity Graph */}
+                <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">Alert severity graph</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">Risk distribution across the network.</p>
+                  </div>
+
+                  <div className="h-52 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={alertSeverityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                        <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                          {alertSeverityData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-400 text-center uppercase tracking-wider">
+                    Total alerts active: {alertSeverityData.reduce((acc, curr) => acc + curr.value, 0)}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 6: AGENT COVERAGE AT A GLANCE (5 colored cards) */}
+              {intelligenceConsolidated && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">Agent coverage at a glance</h3>
+                      <p className="text-[11px] text-slate-400 font-medium font-bold">All agent signals are summarized on this dashboard.</p>
+                    </div>
+                    <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+                      5 agents connected
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                    <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-3.5 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[11px] font-extrabold text-sky-800 block">Outlet</span>
+                        <span className="text-[9px] text-sky-500 block">Revenue & demand</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-800 mt-2 block">
+                        ₹{(intelligenceConsolidated.networkSummary.totalRevenue / 100000).toFixed(1)}L
+                      </span>
+                    </div>
+
+                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3.5 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[11px] font-extrabold text-amber-800 block">Inventory</span>
+                        <span className="text-[9px] text-amber-500 block">Stock availability</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-800 mt-2 block">
+                        {intelligenceConsolidated.networkSummary.criticalStockAlerts + intelligenceConsolidated.networkSummary.lowStockAlerts} alerts
+                      </span>
+                    </div>
+
+                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[11px] font-extrabold text-indigo-800 block">Workforce</span>
+                        <span className="text-[9px] text-indigo-500 block">People capacity</span>
+                      </div>
+                      <span className="text-xs font-black text-indigo-600 mt-2 block cursor-pointer hover:underline" onClick={() => setActiveStepId(5)}>
+                        View productivity
+                      </span>
+                    </div>
+
+                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3.5 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[11px] font-extrabold text-rose-800 block">Marketing</span>
+                        <span className="text-[9px] text-rose-500 block">Customer demand</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-800 mt-2 block">
+                        {intelligenceConsolidated.networkSummary.marketingRoas}x ROAS
+                      </span>
+                    </div>
+
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3.5 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[11px] font-extrabold text-emerald-800 block">Audit</span>
+                        <span className="text-[9px] text-emerald-500 block">Standards & risk</span>
+                      </div>
+                      <span className="text-sm font-black text-slate-800 mt-2 block">
+                        {intelligenceConsolidated.networkSummary.criticalStockAlerts} critical
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 7: PER-AGENT DETAIL CARDS */}
+              {agentTrendData && agentPerformanceScores && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  
+                  {/* Card 1: Outlet Performance */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-extrabold text-slate-900 tracking-tight">Outlet Performance</h4>
+                      <span className="text-[10px] bg-sky-50 text-sky-700 font-bold px-2 py-0.5 rounded-full">{agentPerformanceScores.outlet}%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block -mt-3">Network health</span>
+                    <div className="grid grid-cols-2 gap-2 h-20">
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Trend</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={agentTrendData.outlet}>
+                              <Area type="monotone" dataKey="v" stroke="#06b6d4" fill="#ecfeff" strokeWidth={1} />
+                            </AreaChart>
+                          </ResponsiveContainer>
                         </div>
                       </div>
-
-                      {/* Bar Chart comparing revenue vs operating cost vs profit */}
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 lg:col-span-2 flex flex-col justify-between">
-                        <div className="text-center font-bold text-slate-700 text-xs mb-3">Revenue, Cost & Profit by Outlet</div>
-                        <div className="h-56 w-full">
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">KPI Readiness</span>
+                        <div className="h-10 w-full mt-1">
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart
-                              data={intelligenceConsolidated.outlets.map((o: any) => ({
-                                name: o.outletName.length > 10 ? o.outletName.slice(0, 8) + ".." : o.outletName,
-                                Revenue: o.agentOutputs.sales.revenue,
-                                Cost: o.agentOutputs.sales.revenue - o.agentOutputs.sales.profit,
-                                Profit: o.agentOutputs.sales.profit
-                              }))}
-                              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                            >
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                              <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" />
-                              <YAxis tick={{ fontSize: 9 }} stroke="#94a3b8" />
-                              <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']} />
-                              <Legend />
-                              <Bar dataKey="Revenue" fill="#4f46e5" radius={[3, 3, 0, 0]} name="Revenue" />
-                              <Bar dataKey="Cost" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Operating Cost" />
-                              <Bar dataKey="Profit" fill="#10b981" radius={[3, 3, 0, 0]} name="Net Profit" />
+                            <BarChart data={[{ name: 'F', val: 70 }, { name: 'R', val: 85 }]}>
+                              <Bar dataKey="val" fill="#06b6d4" radius={[1, 1, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                     </div>
+                    <ul className="text-[10px] text-slate-500 font-semibold space-y-1 list-disc pl-4">
+                      <li>5 outlets monitored.</li>
+                      <li>Compare health and revenue to identify stores needing support.</li>
+                    </ul>
+                  </div>
 
-                    {/* Styled color grid showing health score card breakdown */}
-                    <div className="pt-4 border-t border-slate-100">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Store Health Status Treemap</div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        {intelligenceConsolidated.outlets.map((o: any) => (
-                          <div
-                            key={o.outletId}
-                            onClick={() => {
-                              setSelectedOutlet(String(o.outletId));
-                              setActiveStepId(3);
-                            }}
-                            className={`p-3.5 rounded-xl border hover:shadow-md transition-all cursor-pointer text-center relative overflow-hidden ${o.gradeColor}`}
-                          >
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{o.city}</span>
-                            <span className="text-2xl font-black block mt-2">{o.healthScore}</span>
-                            <span className="text-[10px] font-bold block mt-1.5 uppercase border border-current rounded-full px-2 py-0.5 w-fit mx-auto bg-white/40">
-                              Grade {o.grade}
+                  {/* Card 2: Inventory Control */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-extrabold text-slate-900 tracking-tight">Inventory Control</h4>
+                      <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full">{agentPerformanceScores.inventory}%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block -mt-3">5 stock alerts</span>
+                    <div className="grid grid-cols-2 gap-2 h-20">
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Trend</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={agentTrendData.inventory}>
+                              <Area type="monotone" dataKey="v" stroke="#f59e0b" fill="#fffbeb" strokeWidth={1} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">KPI Readiness</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[{ name: 'F', val: 65 }, { name: 'R', val: 78 }]}>
+                              <Bar dataKey="val" fill="#f59e0b" radius={[1, 1, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                    <ul className="text-[10px] text-slate-500 font-semibold space-y-1 list-disc pl-4">
+                      <li>2 critical stock risks active.</li>
+                      <li>Replenish urgent items first to protect sales.</li>
+                    </ul>
+                  </div>
+
+                  {/* Card 3: Workforce */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-extrabold text-slate-900 tracking-tight">Workforce</h4>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{agentPerformanceScores.workforce}%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block -mt-3">Staff quality</span>
+                    <div className="grid grid-cols-2 gap-2 h-20">
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Trend</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={agentTrendData.workforce}>
+                              <Area type="monotone" dataKey="v" stroke="#6366f1" fill="#eef2ff" strokeWidth={1} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">KPI Readiness</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[{ name: 'F', val: 78 }, { name: 'R', val: 88 }]}>
+                              <Bar dataKey="val" fill="#6366f1" radius={[1, 1, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                    <ul className="text-[10px] text-slate-500 font-semibold space-y-1 list-disc pl-4">
+                      <li>Coverage and staff quality monitored.</li>
+                      <li>Align peak-hour schedules with outlet demand.</li>
+                    </ul>
+                  </div>
+
+                  {/* Card 4: Marketing */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-extrabold text-slate-900 tracking-tight">Marketing</h4>
+                      <span className="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded-full">{agentPerformanceScores.marketing}%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block -mt-3">ROI tracking</span>
+                    <div className="grid grid-cols-2 gap-2 h-20">
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Trend</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={agentTrendData.marketing}>
+                              <Area type="monotone" dataKey="v" stroke="#rose-500" fill="#fff1f2" strokeWidth={1} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">KPI Readiness</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[{ name: 'F', val: 80 }, { name: 'R', val: 95 }]}>
+                              <Bar dataKey="val" fill="#f43f5e" radius={[1, 1, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                    <ul className="text-[10px] text-slate-500 font-semibold space-y-1 list-disc pl-4">
+                      <li>{intelligenceConsolidated.networkSummary.marketingRoas}x network ROAS achieved.</li>
+                      <li>Move budget toward campaigns with stronger returns.</li>
+                    </ul>
+                  </div>
+
+                  {/* Card 5: Audit Compliance */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-extrabold text-slate-900 tracking-tight">Audit Compliance</h4>
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full">{agentPerformanceScores.audit}%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block -mt-3">Compliance score</span>
+                    <div className="grid grid-cols-2 gap-2 h-20">
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">Trend</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={agentTrendData.audit}>
+                              <Area type="monotone" dataKey="v" stroke="#10b981" fill="#ecfdf5" strokeWidth={1} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className="border border-slate-100 rounded-lg p-1.5">
+                        <span className="text-[8px] font-bold text-slate-400 block uppercase">KPI Readiness</span>
+                        <div className="h-10 w-full mt-1">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[{ name: 'F', val: 72 }, { name: 'R', val: 85 }]}>
+                              <Bar dataKey="val" fill="#10b981" radius={[1, 1, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                    <ul className="text-[10px] text-slate-500 font-semibold space-y-1 list-disc pl-4">
+                      <li>2 critical compliance risks.</li>
+                      <li>Close high-severity audit findings and verify completion.</li>
+                    </ul>
+                  </div>
+
+                </div>
+              )}
+
+              {/* SECTION 8: OPEN DASHBOARD VIEW (Outlet Performance Deep Dive Panel) */}
+              {agentTrendData && agentPerformanceScores && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest block">Open Dashboard View</span>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight">Outlet Performance</h3>
+                    <span className="text-sm font-extrabold text-cyan-600 bg-cyan-50 px-3 py-1 rounded-lg">
+                      {agentPerformanceScores.outlet}% health
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 -mt-2 font-medium">Important AI-agent signals, shown here without leaving the dashboard.</p>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+                    
+                    {/* Performance movement chart */}
+                    <div className="lg:col-span-8 border border-slate-100 rounded-xl p-4 flex flex-col justify-between">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold text-slate-700">Performance movement <span className="text-[10px] font-normal text-slate-400">Latest agent checkpoints</span></span>
+                        <span className="text-[10px] text-slate-400 font-semibold">Hover for values</span>
+                      </div>
+                      
+                      <div className="h-44 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={agentTrendData.outlet} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <XAxis dataKey="x" tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                            <Tooltip />
+                            <Area type="monotone" dataKey="v" stroke="#06b6d4" fill="#ecfeff" strokeWidth={2} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Right Info blocks */}
+                    <div className="lg:col-span-4 flex flex-col justify-between space-y-4">
+                      <div className="space-y-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Important Points</span>
+                        {[
+                          { num: "1", text: "5 outlets monitored" },
+                          { num: "2", text: "Compare health and revenue to identify stores needing support." }
+                        ].map((point, idx) => (
+                          <div key={idx} className="flex items-start space-x-2 text-xs font-semibold text-slate-700">
+                            <span className="w-5 h-5 rounded-full bg-cyan-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                              {point.num}
                             </span>
+                            <span>{point.text}</span>
                           </div>
                         ))}
+                      </div>
+
+                      <div className="bg-[#0b1329] text-white rounded-xl p-4 space-y-1">
+                        <span className="text-[9px] font-extrabold text-cyan-400 uppercase tracking-widest block">Current Focus</span>
+                        <h4 className="text-xs font-black">Network health</h4>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          Use the two agent graphs above to track change before taking action in the dedicated agent workspace.
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
+
+              {/* SECTION 9: TWO-COLUMN BOTTOM ALERTS & ACTIONS PANEL */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left Column: Priority Alerts */}
+                <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase flex items-center space-x-2">
+                        <span>Priority alerts</span>
+                        {filteredAlerts.length > 0 && (
+                          <span className="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded-full border border-rose-200/40 shrink-0">
+                            {filteredAlerts.filter((a: any) => !acknowledgedAlerts.has(a.id)).length} new
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-medium">Exceptions that need manager attention</p>
+                    </div>
+
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      {["All", "Critical", "High", "Medium"].map((lvl) => (
+                        <button
+                          key={lvl}
+                          onClick={() => setAlertFilter(lvl as any)}
+                          className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                            alertFilter === lvl
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "text-slate-500 hover:text-slate-800"
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                    {filteredAlerts.length > 0 ? (
+                      filteredAlerts.map((rec: any, idx: number) => {
+                        const isAcked = acknowledgedAlerts.has(rec.id);
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex justify-between items-center p-3.5 border border-slate-100 rounded-xl transition-all ${
+                              isAcked ? "opacity-40 bg-slate-50/50" : "bg-white hover:border-slate-200"
+                            }`}
+                          >
+                            <div className="flex items-start space-x-3 text-xs w-3/4">
+                              <span className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${
+                                rec.priority === "P1" ? "bg-red-500" : rec.priority === "P2" ? "bg-orange-400" : "bg-yellow-400"
+                              }`} />
+                              <div>
+                                <h4 className="font-extrabold text-slate-900 tracking-tight">{rec.title}</h4>
+                                <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{rec.rationale}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end space-y-2 shrink-0">
+                              <span className="text-[10px] text-slate-400 font-bold tracking-tight">
+                                {rec.affectedOutlets?.map((o: any) => o.name).join(", ") || "Network wide"}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const updated = new Set(acknowledgedAlerts);
+                                  if (updated.has(rec.id)) {
+                                    updated.delete(rec.id);
+                                  } else {
+                                    updated.add(rec.id);
+                                  }
+                                  setAcknowledgedAlerts(updated);
+                                }}
+                                className="text-[10px] text-indigo-600 font-extrabold cursor-pointer hover:text-indigo-800 transition-colors"
+                              >
+                                {isAcked ? "Reset" : "Acknowledge"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="py-8 text-center text-xs text-slate-400 font-medium">No alerts matching this filter.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Recommended Next Actions */}
+                <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">Recommended next actions</h3>
+                    <p className="text-[11px] text-slate-400 font-medium">Top actions ranked by urgency and impact</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {[
+                      { num: "1", title: "Emergency Re-Audit: Anna Nagar Cafe", cat: "P1 · Compliance" },
+                      { num: "2", title: "Emergency Restocking: HITECH City Hub", cat: "P1 · Inventory" },
+                      { num: "3", title: "Margin Improvement Program: HITECH City Hub", cat: "P2 · Financial" },
+                      { num: "4", title: "Staff Performance Intervention: Indiranagar Flagship", cat: "P2 · Staff" },
+                    ].map((act, idx) => (
+                      <div key={idx} className="flex items-center space-x-3.5 bg-slate-50/50 border border-slate-100 rounded-xl p-3.5 hover:border-slate-200 transition-all">
+                        <div className="w-7 h-7 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                          {act.num}
+                        </div>
+                        <div className="text-xs">
+                          <h4 className="font-extrabold text-slate-900 tracking-tight">{act.title}</h4>
+                          <span className="text-[10px] text-slate-400 font-bold block mt-0.5">{act.cat}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           )}
 
