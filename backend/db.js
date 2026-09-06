@@ -12,15 +12,25 @@
  *  - CURRENT_TIMESTAMP: supported natively in SQLite.
  *  - SERIAL / BOOLEAN: handled in seed.js via INTEGER / INTEGER equivalents.
  */
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
+const { open } = require('sqlite');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'database.sqlite');
-const db = new Database(DB_PATH);
+const DB_PATH = path.join(__dirname, 'prisma', 'database.sqlite');
+let dbPromise = null;
 
-// Enable WAL mode for better concurrency
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+function getDb() {
+  if (!dbPromise) {
+    dbPromise = open({
+      filename: DB_PATH,
+      driver: sqlite3.Database
+    }).then(db => {
+      // Enable foreign keys
+      return db.run('PRAGMA foreign_keys = ON').then(() => db);
+    });
+  }
+  return dbPromise;
+}
 
 /**
  * Converts a PostgreSQL query with $1, $2... params and ANY($n::int[]) 
@@ -29,21 +39,16 @@ db.pragma('foreign_keys = ON');
  */
 function convertQuery(pgSql, pgParams) {
   if (!pgParams || pgParams.length === 0) {
-    // Just replace $n with ? in case there are any stray ones
     return { sql: pgSql.replace(/\$\d+/g, '?'), params: [] };
   }
 
   let sql = pgSql;
   let params = [...pgParams];
 
-  // Handle ANY($n::int[]) — array param expansion
-  // e.g. WHERE o.id = ANY($1::int[]) with params=[[1,2,3]]
-  // → WHERE o.id IN (?,?,?) with params=[1,2,3]
   sql = sql.replace(/=\s*ANY\s*\(\$(\d+)::int\[\]\)/gi, (match, numStr) => {
     const idx = parseInt(numStr, 10) - 1;
     const arr = params[idx];
     if (Array.isArray(arr)) {
-      // Remove the array from params and splice in the individual values
       params.splice(idx, 1, ...arr);
       const placeholders = arr.map(() => '?').join(', ');
       return `IN (${placeholders})`;
@@ -51,15 +56,10 @@ function convertQuery(pgSql, pgParams) {
     return match;
   });
 
-  // Replace remaining $n with ?
   sql = sql.replace(/\$\d+/g, '?');
-
   return { sql, params };
 }
 
-/**
- * Extracts the table name from an INSERT statement.
- */
 function getTableFromInsert(sql) {
   const m = sql.match(/INSERT\s+INTO\s+(\w+)/i);
   return m ? m[1] : null;
@@ -68,14 +68,12 @@ function getTableFromInsert(sql) {
 /**
  * Runs a query and returns a pg-compatible result object: { rows: [...] }
  */
-function query(pgSql, pgParams) {
+async function query(pgSql, pgParams) {
   try {
+    const db = await getDb();
     const { sql, params } = convertQuery(pgSql, pgParams);
     const trimmed = sql.trim().toUpperCase();
 
-    // --- RETURNING clause handling ---
-    // SQLite doesn't support RETURNING in the same way for all cases.
-    // We detect it and handle INSERT/UPDATE specially.
     const hasReturning = /RETURNING/i.test(sql);
 
     if (hasReturning) {
@@ -83,48 +81,39 @@ function query(pgSql, pgParams) {
 
       if (trimmed.startsWith('INSERT')) {
         const table = getTableFromInsert(sql);
-        const stmt = db.prepare(sqlWithoutReturning);
-        const info = stmt.run(...params);
-        const lastId = info.lastInsertRowid;
-        const row = db.prepare(`SELECT * FROM ${table} WHERE rowid = ?`).get(lastId);
+        const result = await db.run(sqlWithoutReturning, ...params);
+        const lastId = result.lastID;
+        const row = await db.get(`SELECT * FROM ${table} WHERE rowid = ?`, [lastId]);
         return { rows: row ? [row] : [] };
       }
 
       if (trimmed.startsWith('UPDATE')) {
-        // Extract WHERE id = $n pattern to fetch the updated row
         const whereMatch = sql.match(/WHERE\s+id\s*=\s*\?/i);
         const table = sql.match(/UPDATE\s+(\w+)/i)?.[1];
-        const stmt = db.prepare(sqlWithoutReturning);
-        stmt.run(...params);
+        await db.run(sqlWithoutReturning, ...params);
         if (table && whereMatch) {
-          // The last param before RETURNING params is the id
           const idParam = params[params.length - 1];
-          const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(idParam);
+          const row = await db.get(`SELECT * FROM ${table} WHERE id = ?`, [idParam]);
           return { rows: row ? [row] : [] };
         }
         return { rows: [] };
       }
     }
 
-    // --- Standard SELECT ---
     if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
-      const rows = db.prepare(sql).all(...params);
+      const rows = await db.all(sql, ...params);
       return { rows };
     }
 
-    // --- DROP / CREATE / INSERT / UPDATE / DELETE ---
-    // Support multi-statement DDL (e.g. seed.js drops + creates multiple tables)
     if (trimmed.startsWith('DROP') || trimmed.startsWith('CREATE')) {
-      // Execute each statement separately
       const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
       for (const s of statements) {
-        db.exec(s + ';');
+        await db.exec(s + ';');
       }
       return { rows: [] };
     }
 
-    const stmt = db.prepare(sql);
-    stmt.run(...params);
+    await db.run(sql, ...params);
     return { rows: [] };
 
   } catch (err) {
@@ -135,21 +124,17 @@ function query(pgSql, pgParams) {
   }
 }
 
-/**
- * Exported pool-like interface to match pg's pool.query signature.
- */
 const pool = {
-  query: (sql, params) => Promise.resolve(query(sql, params)),
+  query: (sql, params) => query(sql, params),
   connect: (cb) => {
-    // Verify DB is accessible
-    try {
-      db.prepare('SELECT 1').get();
+    getDb().then(() => {
       console.log('Successfully connected to SQLite database:', DB_PATH);
       if (cb) cb(null, null, () => {});
-    } catch (err) {
+    }).catch(err => {
       if (cb) cb(err);
-    }
+    });
   }
 };
 
 module.exports = { pool };
+

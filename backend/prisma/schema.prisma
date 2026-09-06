@@ -225,3 +225,116 @@ model audit_incidents {
   created_at      DateTime? @default(now())
   updated_at      DateTime? @default(now())
 }
+
+// ─── AGENTIC AI NOTIFICATION & WORKFLOW MODELS ───────────────────────────────
+
+model business_events {
+  id                  Int             @id @default(autoincrement())
+  event_type          String          // STOCK_SHORTAGE, LOW_SALES, MISSED_CHECKLIST, COMPLIANCE_ISSUE, SLA_BREACH, etc.
+  source_module       String          // Inventory, Sales, Audit, Staff, etc.
+  outlet_id           Int?
+  payload             String          // JSON string payload
+  detected_at         DateTime        @default(now())
+  status              String          @default("PROCESSED") // NEW | PROCESSED | IGNORED
+  notifications       notifications[]
+}
+
+model notification_rules {
+  id                  Int       @id @default(autoincrement())
+  event_type          String    @unique
+  rule_name           String
+  priority            String    // LOW | MEDIUM | HIGH | CRITICAL
+  channels            String    // JSON or comma-separated e.g. "PUSH,EMAIL"
+  sla_minutes         Int       @default(30)
+  auto_action_plan    Boolean   @default(true)
+  auto_escalate       Boolean   @default(true)
+  created_at          DateTime? @default(now())
+}
+
+model notification_preferences {
+  id                  Int       @id @default(autoincrement())
+  user_id             Int       @unique
+  email_enabled       Boolean   @default(true)
+  push_enabled        Boolean   @default(true)
+  sms_enabled         Boolean   @default(true)
+  min_priority        String    @default("LOW") // LOW | MEDIUM | HIGH | CRITICAL
+  updated_at          DateTime? @default(now())
+}
+
+model notifications {
+  id                  Int             @id @default(autoincrement())
+  event_id            Int?
+  recipient_id        Int?
+  outlet_id           Int?
+  title               String
+  message             String
+  severity            String          @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  channels_sent       String          // e.g. "PUSH,EMAIL"
+  status              String          @default("SENT") // SENT | ACKNOWLEDGED | ESCALATED | RESOLVED
+  ai_analysis         String?         // AI reasoning output
+  recommended_action  String?         // AI recommended action
+  retry_count         Int             @default(0)
+  acknowledged_at     DateTime?
+  acknowledged_by     Int?
+  resolved_at         DateTime?
+  created_at          DateTime        @default(now())
+  business_event      business_events? @relation(fields: [event_id], references: [id], onDelete: SetNull)
+  escalations         escalations[]
+  action_plans        action_plans[]
+}
+
+model escalations {
+  id                  Int           @id @default(autoincrement())
+  notification_id     Int
+  action_plan_id      Int?
+  from_user_id        Int?
+  to_user_id          Int?
+  escalation_level    Int           @default(1) // 1: Manager, 2: Regional Manager, etc.
+  reason              String
+  status              String        @default("PENDING") // PENDING | ACKNOWLEDGED | RESOLVED
+  escalated_at        DateTime      @default(now())
+  notification        notifications @relation(fields: [notification_id], references: [id], onDelete: Cascade)
+}
+
+model action_plans {
+  id                  Int           @id @default(autoincrement())
+  notification_id     Int
+  title               String
+  description         String
+  outlet_id           Int?
+  owner_id            Int?
+  owner_name          String?
+  priority            String        @default("HIGH") // LOW | MEDIUM | HIGH | CRITICAL
+  status              String        @default("OPEN") // OPEN | IN_PROGRESS | COMPLETED | VERIFIED | CLOSED | OVERDUE | ESCALATED
+  progress_percentage Int           @default(0)
+  deadline            DateTime?
+  evidence_url        String?
+  verification_notes  String?
+  created_at          DateTime      @default(now())
+  closed_at           DateTime?
+  notification        notifications @relation(fields: [notification_id], references: [id], onDelete: Cascade)
+  action_tasks        action_tasks[]
+}
+
+model action_tasks {
+  id                  Int          @id @default(autoincrement())
+  action_plan_id      Int
+  task_description    String
+  is_completed        Boolean      @default(false)
+  completed_at        DateTime?
+  completed_by        String?
+  action_plan         action_plans @relation(fields: [action_plan_id], references: [id], onDelete: Cascade)
+}
+
+model notification_audit_logs {
+  id                  Int       @id @default(autoincrement())
+  event_id            Int?
+  notification_id     Int?
+  action_plan_id      Int?
+  actor_id            Int?
+  actor_name          String?
+  action              String    // DETECTED | ANALYZED | DISPATCHED | ACKNOWLEDGED | ESCALATED | ACTION_PLAN_CREATED | TASK_COMPLETED | RESOLVED
+  details             String?   // JSON or text summary
+  created_at          DateTime  @default(now())
+}
+

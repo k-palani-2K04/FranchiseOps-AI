@@ -23,6 +23,8 @@ import {
 import MapComponent from "./components/MapComponent";
 import CompareModal from "./components/CompareModal";
 import AuthModal from "./components/AuthModal";
+import NotificationCenter from "./components/NotificationCenter";
+import NotificationDashboard from "./components/NotificationDashboard";
 import { useAuth } from "./context/AuthContext";
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
@@ -151,6 +153,7 @@ const WORKFLOW_STEPS = [
   { id: 8,  name: "Franchise Intelligence",   icon: "Intelligence",  category: "engine", desc: "Fuses domain-specific insights into a centralized reasoning engine to find correlations.", active: false },
   { id: 9,  name: "Business Recommendations", icon: "Recommend",     category: "engine", desc: "Generates actionable strategy recommendations for managers to reduce costs and boost sales.", active: false },
   { id: 10, name: "Dashboard & Alerts",       icon: "Dashboard",     category: "output", desc: "Serves high-level summaries for the franchisor and triggers real-time alerts for critical anomalies.", active: false },
+  { id: 11, name: "AI Notifications & Workflows", icon: "Alert",     category: "agent",  desc: "Agentic AI notification engine, SLA monitoring, multi-channel dispatch, and automated escalation workflows.", active: false },
 ];
 
 // Base URL is configured in lib/api.ts
@@ -1022,6 +1025,9 @@ export default function OperationsDashboard() {
               </select>
             </div>
 
+            {/* Notification Bell Center */}
+            <NotificationCenter onOpenDashboard={() => setActiveStepId(11)} />
+
             {currentUser ? (
               <div className="flex items-center space-x-3 bg-slate-800/80 px-3.5 py-1.5 rounded-2xl border border-slate-700">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -1086,10 +1092,10 @@ export default function OperationsDashboard() {
             {/* Step Groups */}
             {([
               {
-                label: "AI Agents",
+                label: "AI Agents & Workflows",
                 color: "text-indigo-400",
                 dot: "bg-indigo-500",
-                ids: [3, 4, 5, 6, 7],
+                ids: [3, 4, 5, 6, 7, 11],
               },
               {
                 label: "Intelligence Engine",
@@ -5165,7 +5171,7 @@ export default function OperationsDashboard() {
           )}
 
           {/* OTHER STEPS (1, 2) Rendering within section */}
-          {![3, 4, 5, 6, 7, 8, 9, 10].includes(activeStepId) && (
+          {![3, 4, 5, 6, 7, 8, 9, 10, 11].includes(activeStepId) && (
             <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm text-center space-y-4">
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl w-fit mx-auto">
                 <Icons.Workflow />
@@ -5185,6 +5191,11 @@ export default function OperationsDashboard() {
                 </button>
               </div>
             </div>
+          )}
+
+          {/* STEP 11: AGENTIC AI NOTIFICATIONS & WORKFLOWS */}
+          {activeStepId === 11 && (
+            <NotificationDashboard />
           )}
 
 

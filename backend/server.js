@@ -29,6 +29,19 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ─── Agentic AI Notification & Workflow System ───────────────────────────────
+const { initNotificationDb } = require('./initNotificationDb');
+const notificationRoutes = require('./routes/notificationRoutes');
+const { startBackgroundWorker } = require('./services/backgroundWorker');
+
+// Initialize Notification DB tables and start background worker
+initNotificationDb().then(() => {
+  startBackgroundWorker(15000);
+});
+
+// Register Notification Router (after authenticateToken is defined)
+app.use('/api/notifications', authenticateToken, notificationRoutes);
+
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
