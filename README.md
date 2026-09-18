@@ -19,6 +19,7 @@ FranchiseOps AI is a multi-agent intelligent franchise operations platform desig
   - **Cost Ratio Efficiency**: Operating cost as % of gross revenue drift.
 - **Built-in Demo / Standalone Fallback Mode**: Automatically uses a rich local dataset if the backend API is offline so you can run and test the frontend immediately.
 
+
 ---
 
 ## 🛠️ Prerequisites
