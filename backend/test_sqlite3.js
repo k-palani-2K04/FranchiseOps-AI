@@ -10,3 +10,6 @@ const db = new sqlite3.Database(path.join(__dirname, 'prisma/database.sqlite'), 
     });
   }
 });
+
+
+
