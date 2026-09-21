@@ -1,0 +1,158 @@
+Created At: 2026-07-31T21:50:40+05:30
+Completed At: 2026-07-31T21:50:40+05:30
+File Path: `file:///c:/Users/panda/Desktop/FranchiseOps-AI/frontend/app/page.tsx`
+Total Lines: 1084
+Total Bytes: 69504
+Showing lines 101 to 250
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+101:   ),
+102:   Menu: () => (
+103:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+104:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+105:     </svg>
+106:   ),
+107:   Inventory: () => (
+108:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+109:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+110:     </svg>
+111:   ),
+112:   Staff: () => (
+113:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+114:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+115:     </svg>
+116:   ),
+117:   Marketing: () => (
+118:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+119:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+120:     </svg>
+121:   ),
+122:   Audit: () => (
+123:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+124:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+125:     </svg>
+126:   ),
+127:   Intelligence: () => (
+128:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+129:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+130:     </svg>
+131:   ),
+132:   Recommend: () => (
+133:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+134:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+135:     </svg>
+136:   ),
+137:   Dashboard: () => (
+138:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+139:       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+140:     </svg>
+141:   ),
+142: };
+143: 
+144: // ─── Sidebar workflow steps ────────────────────────────────────────────────────
+145: const WORKFLOW_STEPS = [
+146:   { id: 1,  name: "Franchise Data",           icon: "Database",      category: "input",  desc: "Aggregates sales logs, inventory status, staff shifts, marketing spends, and store audit logs.", active: false },
+147:   { id: 2,  name: "Data Validation",          icon: "Check",         category: "process",desc: "Validates schema compliance, handles missing values, cleans transaction records, and processes inputs.", active: false },
+148:   { id: 3,  name: "Outlet Performance Agent", icon: "Trend",         category: "agent",  desc: "Monitors sales, runs trend forecasting, and measures operational efficiency.", active: true },
+149:   { id: 4,  name: "Inventory Agent",          icon: "Inventory",     category: "agent",  desc: "Tracks stock levels, calculates depletion rates, detects stockouts, and automates replenishment.", active: false },
+150:   { id: 5,  name: "Staff Agent",              icon: "Staff",         category: "agent",  desc: "Analyzes staff efficiency, generates automated shifts, and optimizes staffing against sales trends.", active: false },
+151:   { id: 6,  name: "Marketing Agent",          icon: "Marketing",     category: "agent",  desc: "Computes campaign ROI, tracks promotion conversions, and optimizes discount allocations.", active: false },
+152:   { id: 7,  name: "Audit Agent",              icon: "Audit",         category: "agent",  desc: "Validates compliance with brand guidelines, analyzes safety audits, and flags non-compliance.", active: false },
+153:   { id: 8,  name: "Franchise Intelligence",   icon: "Intelligence",  category: "engine", desc: "Fuses domain-specific insights into a centralized reasoning engine to find correlations.", active: false },
+154:   { id: 9,  name: "Business Recommendations", icon: "Recommend",     category: "engine", desc: "Generates actionable strategy recommendations for managers to reduce costs and boost sales.", active: false },
+155:   { id: 10, name: "Dashboard & Alerts",       icon: "Dashboard",     category: "output", desc: "Serves high-level summaries for the franchisor and triggers real-time alerts for critical anomalies.", active: false },
+156: ];
+157: 
+158: const CATEGORY_COLORS: Record<string, string> = {
+159:   input:   "text-cyan-500",
+160:   process: "text-violet-500",
+161:   agent:   "text-indigo-600",
+162:   engine:  "text-amber-500",
+163:   output:  "text-emerald-500",
+164: };
+165: 
+166: const CATEGORY_BG: Record<string, string> = {
+167:   input:   "bg-cyan-50 border-cyan-200",
+168:   process: "bg-violet-50 border-violet-200",
+169:   agent:   "bg-indigo-50 border-indigo-200",
+170:   engine:  "bg-amber-50 border-amber-200",
+171:   output:  "bg-emerald-50 border-emerald-200",
+172: };
+173: 
+174: const BACKEND_URL = "http://localhost:5000/api";
+175: 
+176: // ─── AI Insight Engine ─────────────────────────────────────────────────────────
+177: // Mathematical Formulas Used:
+178: //   1. Linear Regression Slope (β₁) = [n·Σ(xᵢ·yᵢ) - Σxᵢ·Σyᵢ] / [n·Σ(xᵢ²) - (Σxᵢ)²]
+179: //   2. Coefficient of Variation (CV) = σ / μ × 100
+180: //   3. Period-over-Period (MoM) Growth = (H₂ - H₁) / H₁ × 100
+181: //   4. Profit Margin Drift = Linear slope of daily margin %
+182: //   5. Peak Revenue Z-Score = (xᵢ - μ) / σ
+183: //   6. Cost Ratio Drift = Slope of (Operating Cost / Gross Revenue) × 100
+184: 
+185: interface AiInsight {
+186:   title: string;
+187:   value: string;
+188:   subtext: string;
+189:   tag: string;
+190:   tagColor: string;
+191:   icon: "TrendUp" | "TrendDown" | "Stable" | "Warning" | "Sparkle";
+192: }
+193: 
+194: function computeLinearRegressionSlope(values: number[]): number {
+195:   const n = values.length;
+196:   if (n < 2) return 0;
+197:   let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+198:   values.forEach((y, x) => {
+199:     sumX  += x;
+200:     sumY  += y;
+201:     sumXY += x * y;
+202:     sumX2 += x * x;
+203:   });
+204:   const denom = n * sumX2 - sumX * sumX;
+205:   return denom === 0 ? 0 : (n * sumXY - sumX * sumY) / denom;
+206: }
+207: 
+208: function computeCV(values: number[]): number {
+209:   if (values.length === 0) return 0;
+210:   const mean = values.reduce((a, b) => a + b, 0) / values.length;
+211:   if (mean === 0) return 0;
+212:   const variance = values.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / values.length;
+213:   return (Math.sqrt(variance) / mean) * 100;
+214: }
+215: 
+216: function computeAiInsights(
+217:   trendsData: any[],
+218:   salesRecords: any[],
+219:   outletName: string
+220: ): AiInsight[] {
+221:   if (trendsData.length < 3) return [];
+222: 
+223:   const revenues = trendsData.map((d: any) => d.grossRevenue as number);
+224:   const profits  = trendsData.map((d: any) => d.netProfit    as number);
+225:   const margins  = trendsData.map((d: any) =>
+226:     d.grossRevenue > 0 ? (d.netProfit / d.grossRevenue) * 100 : 0
+227:   );
+228: 
+229:   const insights: AiInsight[] = [];
+230:   const n = revenues.length;
+231: 
+232:   // 1. Revenue Momentum (Linear Regression slope)
+233:   const revenueSlope = computeLinearRegressionSlope(revenues);
+234:   const slopePercent = revenues[0] > 0 ? (revenueSlope / revenues[0]) * 100 : 0;
+235:   const momentumLabel =
+236:     slopePercent >  1.5 ? "Strong Uptrend"  :
+237:     slopePercent > -1.5 ? "Stable Trend"    : "Declining Trend";
+238:   const momentumIcon: AiInsight["icon"] =
+239:     slopePercent >  1.5 ? "TrendUp"  :
+240:     slopePercent > -1.5 ? "Stable"   : "TrendDown";
+241:   const momentumColor =
+242:     slopePercent >  1.5 ? "bg-emerald-100 text-emerald-700" :
+243:     slopePercent > -1.5 ? "bg-blue-100 text-blue-700"       : "bg-red-100 text-red-700";
+244:   insights.push({
+245:     title:    "Revenue Momentum",
+246:     value:    `${slopePercent >= 0 ? "+" : ""}${slopePercent.toFixed(2)}% / day`,
+247:     subtext:  `Linear regression slope β₁ = ₹${revenueSlope.toFixed(0)}/day across ${n} days. ${momentumLabel} detected for ${outletName}.`,
+248:     tag:      momentumLabel,
+249:     tagColor: momentumColor,
+250:     icon:     momentumIcon,
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

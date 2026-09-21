@@ -1,0 +1,62 @@
+Franchise Intelligence Engine
+Presentation Outline & Core Feature Specifications
+Executive Summary
+The Franchise Intelligence Engine serves as the central brain of the FranchiseOps-AI platform. It consolidates raw operational, financial, compliance, inventory, and labor data from all specialized sub-agents, converting it into unified health scores, predictive risk alerts, growth opportunities, and strategic action plans. Below is the full description of each presentation slide/section and a detailed log of development blockers and rectifications.
+Development Blockers & Rectifications Log
+1. Prisma Database Schema Mismatch (Status Code 500)
+Blocker/Problem: Intelligence endpoints crashed with database 500 errors when attempting to query non-existent schema fields (like 'max_stock_level', 'reorder_point', and 'monthly_salary') or query outlets with nested 'audit_sessions' tables that had no database-defined relation model.
+Rectification: Corrected the field calls to target existing Prisma fields ('max_capacity' and 'min_threshold' respectively). Removed the staff salary query. Implemented in-memory dynamic mapping in server.js by querying audit sessions separately and grouping them in Javascript by outlet_id.
+2. Windows Python Process Spawn Failure
+Blocker/Problem: When loading marketing data, Node's child_process.spawn('python') crashed or blocked execution in the background because Windows prioritizes a zero-byte app launcher stub in AppData/Local/Microsoft/WindowsApps, which opens the Microsoft Store or fails silently.
+Rectification: Enhanced runPythonTask inside server.js to scan the environment for active Anaconda binary paths and official Program Files installations of Python. Added spawn error event listeners to cleanly catch and reject process failures.
+3. Unicode Emoji Character Corruption
+Blocker/Problem: File writing operations across different text formats corrupted emojis and currency characters into garbled byte representations (e.g., 'Ã°Å¸š¨', 'Ã¢â€šÂ¹').
+Rectification: Replaced all literal symbol strings in the backend with secure JavaScript Unicode escape codes (e.g., \u{1F6A8} for 🚨 and \u20B9 for ₹). Emojis and currency strings now render cleanly in all environments.
+4. Local SQLite Database Password Hash Mismatch
+Blocker/Problem: The pre-hashed user password seed inside the SQLite database was compiled on a different environment, returning 'Invalid credentials' on all login attempts on the demo login portal.
+Rectification: Wrote and executed a prisma update script to generate a fresh locally compiled bcrypt hash of 'admin123' and updated all demo accounts.
+1. Command Center (Overview & Consolidation)
+Overview: The centralized console where headquarters operations managers get a high-level view of the entire franchise network.
+Cross-Agent Output Matrix: A side-by-side comparative table compiling live telemetry from every specialized agent (Sales, Inventory, Staff, and Compliance Audits) per location.
+Network Summary KPI Banners: High-level network averages for Health Scores, Cumulative Revenue/Profit, Stock Alert volume, and Marketing ROAS.
+Value Proposition: Eliminates data silos by aggregating disparate operational metrics into a single pane of glass, allowing executives to see which outlets are performing well and which require attention.
+2. Health Score Engine
+Overview: A multi-dimensional scoring model that translates complex metrics into a single, intuitive numeric score (0 to 100) and letter grade (A+ to F) for each outlet.
+Financial Profitability (35%): Evaluates profit margins against network benchmarks.
+Gross Revenue (10%): Measures raw top-line sales performance.
+Inventory Health (15%): Drags down scores based on active critical shortages or low-stock items.
+Labor Performance (10%): Integrates staff shifts, ratings, and coverage.
+Compliance & Audits (20%): Incorporates the latest SOP check pass rates and compliance scores.
+Volume (10%): Factored by total orders fulfilled.
+Value Proposition: Standardizes performance evaluation across different cities, enabling consistent grading and transparent benchmarking.
+3. Risk Prediction Engine
+Overview: A proactive early-warning system that analyzes trends to forecast operational, financial, compliance, or inventory issues before they impact the bottom line.
+Financial Risks: Triggers critical alerts when profit margins dip below sustainability thresholds.
+Compliance Risks: Flags failed hygiene/food safety audits or low compliance trends.
+Inventory Risks: Warns of imminent stockouts on key ingredients.
+Revenue Risks: Identifies negative quarter-over-quarter revenue trajectories.
+Value Proposition: Shifts management from reactive fire-fighting to proactive mitigation, giving regional managers a 30-to-60 day window to intervene before losses occur.
+4. Growth Opportunities
+Overview: An opportunity detection algorithm that identifies underutilized capacity or high-performing assets to drive growth.
+Revenue Growth: Flags outlets with perfect compliance scores but below-average sales, recommending hyper-local marketing campaigns.
+Marketing Expansion: Targets high-margin outlets with budget boost recommendations to capture local demand.
+Labor Optimization: Recommends supervisory promotions or schedule optimization for outlets with exceptionally high staff ratings.
+Inventory Efficiency: Identifies overstocked locations, liberating tied-up capital.
+Value Proposition: Translates latent database signals into estimated monthly financial lifts (in Rupees) for each proposed growth tactic.
+5. Strategic Recommendations
+Overview: An automated strategic consultant that prioritizes critical action items ranked by urgency * impact.
+Action Plan Checklists: Actionable step-by-step instructions (e.g., re-allocating marketing budget, triggering emergency supplier orders, scheduling manager re-audits).
+Priority Sorting: Categorized clearly into P1 (Critical), P2 (High), and P3 (Medium/Proactive) tasks.
+Estimated Impact: Highlights the direct operational outcome of taking action.
+Value Proposition: Closes the gap between insights and action by providing store managers with clear, executable checklists to remediate issues immediately.
+6. Network Performance Benchmarks (Outliers)
+Overview: A performance benchmarking module that extracts the best and worst outliers across the network.
+Revenue Champion: The location generating the highest gross revenue.
+Margin Champion: The location achieving the highest operational efficiency.
+Audit Champion: The benchmark location for operational standards and compliance.
+Needs Support: The outlet with the lowest health score requiring immediate executive assistance.
+Value Proposition: Promotes internal competition and facilitates knowledge sharing by pointing out the best-practice models for other outlets to replicate.
+7. Interactive Health Score Simulator
+Overview: A sandboxing tool allowing managers to dynamically simulate operational variables and observe their direct effect on health scores.
+Adjustable Variables: Range sliders for Gross Revenue, Operating Margin, Stock Shortages, Staff Rating, and Audit Compliance.
+Value Proposition: Helps operators perform 'What-If' scenarios to calculate the exact ROI of operational changes (e.g., 'How much will our health score improve if we resolve our dairy stockouts and lift staff ratings by 0.5?').

@@ -1,30 +1,82 @@
-# FranchiseOps AI — Enterprise Agentic Operations & Analytics
+# FranchiseOps AI — Enterprise Agentic Operations & Analytics Platform
 
-FranchiseOps AI is a multi-agent intelligent franchise operations platform designed to monitor outlet sales, run trend forecasting, measure operational efficiency, and deliver dynamic mathematical AI insights.
+**FranchiseOps AI** is an enterprise-grade, multi-agent intelligent franchise operations platform. Designed for multi-location franchise networks, it aggregates operational, financial, compliance, inventory, labor, and marketing telemetry from across all store locations into a unified intelligence engine. 
+
+The platform features an **11-Step Agentic Operational Process Workflow**, dynamic mathematical AI insight models, real-time loss prevention audits, predictive anomaly radars, automated recommendation action plans, and a non-blocking background SLA escalation notification engine.
 
 ---
 
-## ✨ Features
+## 🌟 Key Platform Features
 
-- **Collapsible Sidebar Workflow Navigation**: Clean 10-step agentic process workflow sidebar (Data Aggregation, Validation, Performance Agent, Inventory, Staff, Marketing, Audit, Intelligence Engine, Recommendations, Alerts).
-- **Outlet Performance Agent Dashboard**:
-  - **Monitor Daily Sales**: Interactive search, column sorting, pagination, and granular store audit logs.
-  - **Revenue & Profit Trends**: Visual daily trends (Recharts Area & Bar charts) for Gross Revenue, Operating Costs, Net Profit, and Payment Split (UPI, Card, Cash).
-- **Dynamic AI Revenue Insights Engine**:
-  - **Revenue Momentum**: Linear regression slope (\(\beta_1 = \frac{n\sum x_i y_i - \sum x_i \sum y_i}{n\sum x_i^2 - (\sum x_i)^2}\)) measuring daily growth rate.
-  - **Revenue Volatility**: Coefficient of Variation (\(CV = \frac{\sigma}{\mu} \times 100\)) rating sales consistency.
-  - **Period-over-Period Growth**: First-half vs second-half average comparison (\(\frac{H_2 - H_1}{H_1} \times 100\)).
-  - **Profit Margin Drift**: Regression slope of daily profit margin percentages.
-  - **Peak Revenue Detection**: Outlier detection using Z-scores (\(z = \frac{x_i - \mu}{\sigma}\)).
-  - **Cost Ratio Efficiency**: Operating cost as % of gross revenue drift.
-- **Built-in Demo / Standalone Fallback Mode**: Automatically uses a rich local dataset if the backend API is offline so you can run and test the frontend immediately.
+### 🔄 11-Step Agentic Process Workflow
+The application guides operators through an end-to-end 11-step agentic lifecycle:
+
+1. **Franchise Data Aggregation**: Ingests raw multi-location telemetry including POS sales logs, inventory stock balances, workforce shift rosters, marketing campaign spends, and store audit evaluations.
+2. **Data Validation**: Sanitizes data streams, enforces schema validation, handles missing values, cleans transaction records, and reconciles input formats.
+3. **Outlet Performance Agent**: 
+   - **Daily Sales & Margin Analytics**: Granular sales tables with sorting, filtering, pagination, and store performance rankings.
+   - **Dynamic Mathematical AI Insights**:
+     - *Revenue Momentum*: Linear regression slope ($\beta_1 = \frac{n\sum x_i y_i - \sum x_i \sum y_i}{n\sum x_i^2 - (\sum x_i)^2}$) tracking growth velocity.
+     - *Revenue Volatility*: Coefficient of Variation ($CV = \frac{\sigma}{\mu} \times 100$) evaluating sales consistency.
+     - *Period-over-Period Growth*: Half-over-half sales comparison ($\frac{H_2 - H_1}{H_1} \times 100$).
+     - *Profit Margin Drift*: Regression slope of daily net profit margin percentages.
+     - *Peak Revenue Detection*: Z-score outlier detection ($z = \frac{x_i - \mu}{\sigma}$).
+   - **Interactive Location Map & Side-by-Side Comparison**: Map visualization of outlet locations with side-by-side comparative modals.
+4. **Inventory Agent**: Tracks real-time stock balances, calculates item depletion rates, predicts ingredient stockouts, generates automated replenishment orders, and suggests inter-outlet stock transfers.
+5. **Staff Agent**: Analyzes staff performance ratings, breaks down shifts (Morning, Evening, Night), generates automated shift rosters, tracks labor fatigue, and optimizes labor costs against sales velocity.
+6. **Marketing Agent**: Computes campaign ROI, tracks channel conversion rates (Social Media, Search, Influencer, Print), calculates Return on Ad Spend (ROAS), and recommends campaign budget reallocations.
+7. **Audit Agent (Compliance & Loss Prevention)**:
+   - **Digital Store Audits**: Executes weighted checklists across *Hygiene, Food Safety, SOPs, and Facility Opening Procedures* with automated Pass/Fail scoring ($70\%$ pass threshold).
+   - **Non-Compliance Findings**: Auto-generates critical findings for failed audit items.
+   - **POS Financial & Void Audit**: Reconciles sales revenue against cash/card/UPI splits to detect cash drawer discrepancies and void fraud ($>45\%$ cash dependency alerts).
+   - **Inventory Variance Audit**: Compares physical stock vs. POS theoretical consumption to flag inventory shrinkage and theft ($>25\%$ variance alerts).
+   - **Labor & Certification Audit**: Verifies shift coverage and flags low-performing staff ($<3.5/5.0$) for safety re-certification.
+   - **Incident Management**: Tracks operational incidents from reported state through resolution.
+8. **Franchise Intelligence Engine**:
+   - **Cross-Agent Output Matrix**: Side-by-side comparative telemetry table consolidating all agent outputs per store.
+   - **Multi-Dimensional Health Score (0–100 & Grades A+ to F)**: Standardized scoring formula weighting *Financial Profitability (35%), Compliance & Audits (20%), Inventory Health (15%), Revenue (10%), Labor (10%), and Order Volume (10%)*.
+   - **Proactive Risk Prediction Engine**: 30-to-60 day early warning forecasts for Financial, Compliance, Inventory, Revenue, and Marketing risks.
+   - **14–30 Day Predictive Anomaly Radar**: Multi-axis risk radar predicting *Stockout Risk, Labor Fatigue, CSAT Risk, and Margin Drift*.
+   - **Growth Opportunities Engine**: Identifies latent financial growth opportunities, marketing scale-up candidates, star staff leverage, and overstock working capital liberation.
+   - **Interactive Health Score Simulator**: What-If scenario sandbox allowing operators to adjust revenue, margins, stock issues, staff ratings, and audit scores to observe immediate ROI impact.
+9. **Strategic Business Recommendations**: Algorithmic strategic advisor generating prioritized action directives (**P1 Critical, P2 High, P3 Growth**) with cross-agent data rationale, affected outlet tags, step-by-step executable action checklists, quantified financial return, and urgency dials ($0\text{--}100\%$).
+10. **Executive Dashboard & Alerts (Command Centre)**: Executive dashboard featuring network-wide summary KPI banners, live agent performance gauges, 5-checkpoint trend snapshot sparklines, interactive multi-metric outlet bar charts, and a real-time risk alert feed with severity filtering and one-click task acknowledgment.
+11. **AI Notifications & Automated Workflows**:
+    - **AI Decision & Rule Validation Engine**: Ingests operational events, evaluates business impact, writes AI reasoning, and selects optimal alert dispatch channels (`PUSH`, `EMAIL`, `SMS`).
+    - **Action Plans & SLA Tracking**: Creates structured action plans with strict SLA countdown timers (e.g., 30 or 120 minutes).
+    - **Background SLA Escalation Engine**: Non-blocking background worker polling every 15 seconds to monitor SLA compliance, triggering SMS fallback retries and hierarchical authority escalation (`Store Owner` $\rightarrow$ `Store Manager` $\rightarrow$ `Regional Manager`).
+
+---
+
+## 🏗️ System Architecture & Tech Stack
+
+```text
+                               ┌──────────────────────────────────────────┐
+                               │             Next.js 16 Frontend          │
+                               │   (React 19, TypeScript, TailwindCSS)   │
+                               └────────────────────┬─────────────────────┘
+                                                    │ REST API / Axios
+                               ┌────────────────────▼─────────────────────┐
+                               │           Express REST API Server        │
+                               │        (Node.js, Prisma ORM, JWT)        │
+                               └────────┬───────────────┬───────────────┬─┘
+                                        │               │               │
+                  ┌─────────────────────▼─┐   ┌─────────▼─────────┐   ┌─▼──────────────────┐
+                  │   Prisma ORM SQLite   │   │  SQLite3 Database │   │  Agentic AI & Background │
+                  │    (database.sqlite)  │   │(notifications.sqlite)│ │   SLA Worker Engine  │
+                  └───────────────────────┘   └───────────────────┘   └────────────────────┘
+```
+
+- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, TailwindCSS, Recharts, Lucide Icons, Leaflet Map Component, Axios API Client.
+- **Backend**: Node.js, Express REST API, Prisma ORM, SQLite3 (Dual-database architecture: `database.sqlite` for operational entities and `notifications.sqlite` for agentic notifications/rules/audit logs), bcrypt authentication with JWT tokens.
+- **AI & Background Services**: Agentic event detector pipeline (`eventDetector.js`), AI workflow decision engine (`aiWorkflowEngine.js`), non-blocking SLA background worker (`backgroundWorker.js`), hierarchical escalation engine (`escalationEngine.js`), and multi-channel notification dispatcher (`channelService.js`).
 
 
 ---
 
 ## 🛠️ Prerequisites
 
-Make sure you have the following installed on your system:
+Ensure you have the following installed on your system:
 
 - [Node.js](https://nodejs.org/) (v18.x or higher recommended)
 - `npm` (v9.x or higher)
@@ -33,12 +85,12 @@ Make sure you have the following installed on your system:
 
 ## 🚀 Quick Start Guide
 
-### Option 1: Run Frontend Only (Demo Mode)
+### Option 1: Run Frontend Only (Demo / Standalone Mode)
 
-The frontend automatically falls back to an built-in deterministic demo dataset if the backend server is not running.
+The frontend includes a built-in deterministic demo dataset. If the backend API is offline, the application seamlessly operates in offline demo mode.
 
 ```bash
-# 1. Navigate to the frontend folder
+# 1. Navigate to the frontend directory
 cd frontend
 
 # 2. Install dependencies
@@ -48,11 +100,11 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-### Option 2: Run Full Stack (Frontend + Backend)
+### Option 2: Run Full Stack (Frontend + Backend API + Background SLA Worker)
 
 #### 1. Start the Backend API Server
 
@@ -63,10 +115,10 @@ cd backend
 # Install dependencies
 npm install
 
-# (Optional) Seed the database with Prisma
+# (Optional) Run Prisma database migrations and seed operational data
 npm run seed
 
-# Start the Node.js Express server (runs on http://localhost:5000)
+# Start the Node.js Express server & SLA background worker (runs on http://localhost:5000)
 npm run start
 ```
 
@@ -75,7 +127,10 @@ npm run start
 In a separate terminal window:
 
 ```bash
+# Navigate to the frontend directory
 cd frontend
+
+# Start the Next.js development server
 npm run dev
 ```
 
@@ -83,20 +138,44 @@ Open [http://localhost:3000](http://localhost:3000). The frontend will automatic
 
 ---
 
-## 📁 Project Structure
+## 🔑 Demo Login Credentials
+
+You can test the platform using the following pre-seeded demo accounts:
+
+- **Corporate Admin / Franchisor**: `admin@franchiseops.com` / `admin123`
+- **Regional Manager**: `manager@franchiseops.com` / `admin123`
+- **Store Manager**: `store@franchiseops.com` / `admin123`
+
+---
+
+## 📁 Repository Structure
 
 ```text
-FranchiseOpsAI/
-├── frontend/             # Next.js 16 (React 19, TailwindCSS, Recharts)
-│   ├── app/              # Main App Router & page dashboard
-│   ├── public/           # Static assets
+FranchiseOps-AI/
+├── frontend/                   # Next.js 16 App Router Frontend
+│   ├── app/
+│   │   ├── page.tsx            # Main 11-step interactive dashboard console
+│   │   ├── login/              # Authentication portal
+│   │   ├── components/         # NotificationCenter, MapComponent, CompareModal
+│   │   └── lib/                # Axios API configuration & utility helpers
+│   ├── public/                 # Static assets
 │   └── package.json
-├── backend/              # Node.js + Express REST API
-│   ├── server.js         # Express server & endpoints
-│   ├── seed.js           # Database seed script
-│   ├── prisma/           # Prisma ORM schema
+├── backend/                    # Node.js + Express REST API Server
+│   ├── server.js               # Primary REST endpoints & business logic handlers
+│   ├── db.js                   # SQLite3 pool connection for notification engine
+│   ├── initNotificationDb.js   # Notification database schema initializer
+│   ├── seed.js                 # Prisma database seeder
+│   ├── prisma/
+│   │   └── schema.prisma       # Prisma ORM domain schema
+│   ├── services/
+│   │   ├── eventDetector.js    # Ingestion & anomaly detection pipeline
+│   │   ├── aiWorkflowEngine.js # AI decision & rule validation engine
+│   │   ├── channelService.js   # Multi-channel notification dispatcher (Push/Email/SMS)
+│   │   ├── actionPlanService.js# Action plan generation & SLA tracking
+│   │   ├── escalationEngine.js # Hierarchical escalation engine
+│   │   └── backgroundWorker.js # 15-second non-blocking SLA monitoring worker
 │   └── package.json
-└── README.md             # Project documentation
+└── README.md                   # Platform documentation
 ```
 
 ---
