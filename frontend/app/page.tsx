@@ -721,8 +721,8 @@ export default function OperationsDashboard() {
     if (!healthScores) return [];
     return healthScores.map(hs => ({
       name: hs.outletName,
-      Revenue: hs.metrics.revenue,
-      Profit: hs.metrics.profit,
+      Revenue: hs.metrics.grossRevenue,
+      Profit: hs.metrics.netProfit,
     }));
   }, [healthScores]);
 

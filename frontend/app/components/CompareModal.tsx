@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 
 interface CompareItem {
   id: number;
@@ -52,8 +52,8 @@ export default function CompareModal({ isOpen, onClose, selectedLocationIds }: C
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(
-        `http://localhost:5000/api/outlets/compare?ids=${selectedLocationIds.join(",")}`
+      const res = await api.get(
+        `/outlets/compare?ids=${selectedLocationIds.join(",")}`
       );
       setData(res.data);
     } catch (err: any) {
